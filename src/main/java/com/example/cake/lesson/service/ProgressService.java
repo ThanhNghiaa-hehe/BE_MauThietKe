@@ -13,17 +13,23 @@ import com.example.cake.lesson.model.UserProgress;
 import com.example.cake.lesson.repository.ChapterRepository;
 import com.example.cake.lesson.repository.LessonRepository;
 import com.example.cake.lesson.repository.UserProgressRepository;
+import com.example.cake.lesson.service.event.CourseCompletedEvent;
+import com.example.cake.lesson.service.event.LessonCompletedEvent;
+import com.example.cake.lesson.service.progress.ProgressContext;
+import com.example.cake.lesson.service.progress.ProgressState;
+import com.example.cake.lesson.service.progress.ProgressStateResolver;
+import com.example.cake.lesson.service.progress.StateTransitionResult;
+import com.example.cake.lesson.service.progress.UserProgressStatus;
 import com.example.cake.quiz.repository.QuizAttemptRepository;
 import com.example.cake.response.ResponseMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -35,6 +41,10 @@ public class ProgressService {
     private final ChapterRepository chapterRepository;
     private final CourseRepository courseRepository;
     private final QuizAttemptRepository quizAttemptRepository;
+
+    // State + Observer wiring
+    private final ProgressStateResolver stateResolver;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Khởi tạo tiến độ khi user đăng ký khóa học
@@ -56,6 +66,9 @@ public class ProgressService {
                 .enrolledAt(LocalDateTime.now())
                 .lastAccessedAt(LocalDateTime.now())
                 .build();
+
+        // State hook
+        stateResolver.resolve(progress).onEnroll(progress);
 
         progressRepository.save(progress);
         log.info("Initialized progress for user: {} in course: {}", userId, courseId);
@@ -90,23 +103,54 @@ public class ProgressService {
 
         UserProgress progress = progressRepository.findByUserIdAndCourseId(userId, lesson.getCourseId()).orElse(null);
         if (progress == null) {
-            return new ResponseMessage<>(false, "Progress not found", null);
+            return new ResponseMessage<>(false, "User not enrolled in this course", null);
         }
 
-        // Thêm vào danh sách completed
+        // Rule: must be allowed to access lesson (sequential unlock, etc.)
+        boolean canAccess = Boolean.TRUE.equals(canAccessLesson(userId, lessonId).getData());
+        boolean alreadyCompleted = progress.isLessonCompleted(lessonId);
+
+        ProgressState currentState = stateResolver.resolve(progress);
+        ProgressContext ctx = new ProgressContext(progress, lesson, null, canAccess, alreadyCompleted);
+        StateTransitionResult transition = currentState.completeLesson(ctx);
+        if (!transition.isAllowed()) {
+            return new ResponseMessage<>(false, transition.getMessage(), progress);
+        }
+        if (alreadyCompleted) {
+            return new ResponseMessage<>(true, "Lesson already completed", progress);
+        }
+
+        // Apply domain changes
         progress.markLessonComplete(lessonId);
 
-        // Cập nhật lesson progress
         UserProgress.LessonProgress lessonProgress = findOrCreateLessonProgress(progress, lessonId);
         lessonProgress.setCompleted(true);
         lessonProgress.setCompletedAt(LocalDateTime.now());
         lessonProgress.setVideoProgress(100);
 
-        // Cập nhật tổng tiến độ
         updateTotalProgress(progress, lesson.getCourseId());
-
+        progress.setCurrentLessonId(lessonId);
         progress.setLastAccessedAt(LocalDateTime.now());
         progressRepository.save(progress);
+
+        // Observer events
+        eventPublisher.publishEvent(LessonCompletedEvent.builder()
+                .userId(userId)
+                .courseId(lesson.getCourseId())
+                .lessonId(lessonId)
+                .totalProgress(progress.getTotalProgress())
+                .completedAt(lessonProgress.getCompletedAt())
+                .build());
+
+        if (progress.getCompletedAt() != null && stateResolver.resolve(progress).getStatus() == UserProgressStatus.COMPLETED) {
+            eventPublisher.publishEvent(CourseCompletedEvent.builder()
+                    .userId(userId)
+                    .courseId(lesson.getCourseId())
+                    .totalProgress(progress.getTotalProgress())
+                    .completedAt(progress.getCompletedAt())
+                    .build());
+            stateResolver.resolve(progress).onCourseCompleted(progress);
+        }
 
         log.info("User {} completed lesson {}", userId, lessonId);
         return new ResponseMessage<>(true, "Lesson marked as complete", progress);
@@ -159,18 +203,49 @@ public class ProgressService {
 
         UserProgress progress = progressRepository.findByUserIdAndCourseId(userId, lesson.getCourseId()).orElse(null);
         if (progress == null) {
-            return new ResponseMessage<>(false, "Progress not found", null);
+            return new ResponseMessage<>(false, "User not enrolled in this course", null);
+        }
+
+        boolean canAccess = Boolean.TRUE.equals(canAccessLesson(userId, lessonId).getData());
+        boolean alreadyCompleted = progress.isLessonCompleted(lessonId);
+
+        ProgressState currentState = stateResolver.resolve(progress);
+        ProgressContext ctx = new ProgressContext(progress, lesson, percent, canAccess, alreadyCompleted);
+        StateTransitionResult transition = currentState.updateVideoProgress(ctx);
+        if (!transition.isAllowed()) {
+            return new ResponseMessage<>(false, transition.getMessage(), progress);
         }
 
         UserProgress.LessonProgress lessonProgress = findOrCreateLessonProgress(progress, lessonId);
         lessonProgress.setVideoProgress(percent);
 
-        // Nếu xem đến 90% thì tự động đánh dấu complete
-        if (percent >= 90 && !Boolean.TRUE.equals(lessonProgress.getCompleted())) {
-            lessonProgress.setCompleted(true);
-            lessonProgress.setCompletedAt(LocalDateTime.now());
-            progress.markLessonComplete(lessonId);
-            updateTotalProgress(progress, lesson.getCourseId());
+        if (percent != null && percent >= 90 && !Boolean.TRUE.equals(lessonProgress.getCompleted())) {
+            // Use the same state rule for completion
+            StateTransitionResult completeTransition = currentState.completeLesson(new ProgressContext(progress, lesson, percent, canAccess, alreadyCompleted));
+            if (completeTransition.isAllowed()) {
+                lessonProgress.setCompleted(true);
+                lessonProgress.setCompletedAt(LocalDateTime.now());
+                progress.markLessonComplete(lessonId);
+                updateTotalProgress(progress, lesson.getCourseId());
+
+                eventPublisher.publishEvent(LessonCompletedEvent.builder()
+                        .userId(userId)
+                        .courseId(lesson.getCourseId())
+                        .lessonId(lessonId)
+                        .totalProgress(progress.getTotalProgress())
+                        .completedAt(lessonProgress.getCompletedAt())
+                        .build());
+
+                if (progress.getCompletedAt() != null && stateResolver.resolve(progress).getStatus() == UserProgressStatus.COMPLETED) {
+                    eventPublisher.publishEvent(CourseCompletedEvent.builder()
+                            .userId(userId)
+                            .courseId(lesson.getCourseId())
+                            .totalProgress(progress.getTotalProgress())
+                            .completedAt(progress.getCompletedAt())
+                            .build());
+                    stateResolver.resolve(progress).onCourseCompleted(progress);
+                }
+            }
         }
 
         progress.setCurrentLessonId(lessonId);
@@ -686,7 +761,8 @@ public class ProgressService {
                         progress.getLessonsProgress().stream()
                             .filter(lp -> lp.getLessonId().equals(lesson.getId()))
                             .findFirst()
-                            .orElse(null) : null;
+                            .orElse(null)
+                        : null;
 
                     if (lessonProgress != null) {
                         quizPassed = lessonProgress.getQuizPassedAt() != null;

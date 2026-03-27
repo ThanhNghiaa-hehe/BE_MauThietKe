@@ -1,0 +1,159 @@
+{
+  "info": {
+    "_postman_id": "b8aa6b1b-f12d-4c72-bf2a-b5a010c3177a",
+    "name": "Cake Course Backend - PROGRESS (State + Observer)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Progress collection to test State transitions + Observer events. Includes enroll, check access, update video progress, complete lesson, get progress, my-courses, chapters progress. Requires JWT (Bearer) for most endpoints."
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "jwt", "value": "" },
+
+    { "key": "courseId", "value": "" },
+    { "key": "lessonId", "value": "" },
+    { "key": "lockedLessonId", "value": "" },
+    { "key": "percent", "value": "90" }
+  ],
+  "item": [
+    {
+      "name": "1) Enroll / Progress",
+      "item": [
+        {
+          "name": "Enroll course - POST /api/progress/enroll/{courseId}",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/progress/enroll/{{courseId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "progress", "enroll", "{{courseId}}" ]
+            }
+          }
+        },
+        {
+          "name": "Get course progress - GET /api/progress/course/{courseId}",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/progress/course/{{courseId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "progress", "course", "{{courseId}}" ]
+            }
+          }
+        },
+        {
+          "name": "My courses - GET /api/progress/my-courses",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/progress/my-courses",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "progress", "my-courses" ]
+            }
+          }
+        },
+        {
+          "name": "Chapters with progress - GET /api/progress/course/{courseId}/chapters",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/progress/course/{{courseId}}/chapters",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "progress", "course", "{{courseId}}", "chapters" ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2) Access / Video progress / Complete",
+      "item": [
+        {
+          "name": "Check lesson access (should be TRUE for unlocked) - GET /api/lessons/{lessonId}/access",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/lessons/{{lessonId}}/access",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "lessons", "{{lessonId}}", "access" ]
+            }
+          }
+        },
+        {
+          "name": "Update video progress (>=90 will auto-complete if allowed) - POST /api/lessons/{lessonId}/progress?percent=90",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/lessons/{{lessonId}}/progress?percent={{percent}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "lessons", "{{lessonId}}", "progress" ],
+              "query": [
+                { "key": "percent", "value": "{{percent}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark lesson complete (manual) - POST /api/lessons/{lessonId}/complete",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/lessons/{{lessonId}}/complete",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "lessons", "{{lessonId}}", "complete" ]
+            }
+          }
+        },
+        {
+          "name": "Get next lesson info - GET /api/lessons/{lessonId}/next",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/lessons/{{lessonId}}/next",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "lessons", "{{lessonId}}", "next" ]
+            }
+          }
+        },
+        {
+          "name": "NEGATIVE TEST: Try completing a locked lesson (should fail) - POST /api/lessons/{lockedLessonId}/complete",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/lessons/{{lockedLessonId}}/complete",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "lessons", "{{lockedLessonId}}", "complete" ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+

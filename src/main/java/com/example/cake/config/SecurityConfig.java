@@ -36,7 +36,7 @@ public class SecurityConfig {
                                 "/api/auth/**",        // login/register
                                 "/api/courses/**",     // public course
                                 "/api/curriculum/**",  // xem curriculum (chapters + lessons)
-                                "/api/payment/vnpay/**", // VNPAY callback (return & IPN)
+                                "/api/payment/payos/**", // PayOS webhook
                                 "/static/**",          // ảnh courses, avatars
                                 "/api/lessons/**"
                         ).permitAll()

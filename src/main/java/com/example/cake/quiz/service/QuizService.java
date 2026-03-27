@@ -7,13 +7,15 @@ import com.example.cake.quiz.model.Quiz;
 import com.example.cake.quiz.model.QuizAttempt;
 import com.example.cake.quiz.repository.QuizAttemptRepository;
 import com.example.cake.quiz.repository.QuizRepository;
+import com.example.cake.quiz.service.event.QuizSubmittedEvent;
+import com.example.cake.quiz.service.scoring.QuizGrader;
 import com.example.cake.response.ResponseMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -25,6 +27,12 @@ public class QuizService {
     private final QuizRepository quizRepository;
     private final QuizAttemptRepository attemptRepository;
     private final com.example.cake.lesson.service.ProgressService progressService;
+
+    // Strategy + Factory
+    private final QuizGrader quizGrader;
+
+    // Observer
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Get all quizzes (admin)
@@ -129,8 +137,8 @@ public class QuizService {
             return new ResponseMessage<>(false, "Bạn đã hết lượt làm quiz này", null);
         }
 
-        // Grade quiz
-        GradingResult gradingResult = gradeQuiz(quiz, request.getAnswers());
+        // Grade quiz (Strategy + Factory)
+        QuizGrader.GradingResult gradingResult = quizGrader.grade(quiz, request.getAnswers());
 
         // Calculate remaining attempts
         Integer remainingAttempts = null;
@@ -145,31 +153,41 @@ public class QuizService {
                 .lessonId(quiz.getLessonId())
                 .courseId(quiz.getCourseId())
                 .attemptNumber(attemptCount + 1)
-                .score(gradingResult.score)
-                .totalScore(gradingResult.totalScore)
-                .percentage(gradingResult.percentage)
-                .passed(gradingResult.passed)
-                .answers(gradingResult.answers)
+                .score(gradingResult.score())
+                .totalScore(gradingResult.totalScore())
+                .percentage(gradingResult.percentage())
+                .passed(gradingResult.passed())
+                .answers(gradingResult.answers())
                 .timeSpent(request.getTimeSpent())
                 .startedAt(request.getStartedAt())
                 .completedAt(LocalDateTime.now())
                 .build();
 
         attempt = attemptRepository.save(attempt);
-        log.info("Saved quiz attempt: user={}, quiz={}, score={}/{}", 
+        log.info("Saved quiz attempt: user={}, quiz={}, score={}/{}",
                 userId, quiz.getId(), attempt.getScore(), attempt.getTotalScore());
 
-        // ✅ FIX: Update UserProgress if quiz is passed
+        // Backward-compatible update (keep existing behavior)
         if (attempt.getPassed() && quiz.getLessonId() != null) {
             progressService.updateQuizPassed(userId, quiz.getLessonId(), attempt.getPercentage());
             log.info("✅ Updated quiz passed status in UserProgress for user={}, lesson={}",
                     userId, quiz.getLessonId());
         }
 
+        // Observer: publish event for decoupled side effects (e.g., updating progress)
+        eventPublisher.publishEvent(QuizSubmittedEvent.builder()
+                .userId(userId)
+                .quizId(quiz.getId())
+                .lessonId(quiz.getLessonId())
+                .percentage(attempt.getPercentage())
+                .passed(attempt.getPassed())
+                .attempt(attempt)
+                .build());
+
         // Create response
         QuizResultResponse response = QuizResultResponse.from(
-                attempt, 
-                gradingResult.questionResults, 
+                attempt,
+                gradingResult.questionResults(),
                 remainingAttempts
         );
 
@@ -255,87 +273,5 @@ public class QuizService {
         log.info("Deleted quiz: {}", quizId);
 
         return new ResponseMessage<>(true, "Quiz deleted successfully", null);
-    }
-
-    // ========== HELPER METHODS ==========
-
-    /**
-     * Grade quiz
-     */
-    private GradingResult gradeQuiz(Quiz quiz, List<QuizSubmitRequest.AnswerRequest> userAnswers) {
-        int totalScore = 0;
-        int earnedScore = 0;
-        List<QuizAttempt.Answer> answers = new ArrayList<>();
-        List<QuizResultResponse.QuestionResult> questionResults = new ArrayList<>();
-
-        for (Quiz.Question question : quiz.getQuestions()) {
-            totalScore += question.getPoints();
-
-            // Find user's answer
-            QuizSubmitRequest.AnswerRequest userAnswer = userAnswers.stream()
-                    .filter(a -> a.getQuestionId().equals(question.getId()))
-                    .findFirst()
-                    .orElse(null);
-
-            List<String> selectedOptions = userAnswer != null ? userAnswer.getSelectedOptions() : new ArrayList<>();
-
-            // Get correct answers
-            List<String> correctAnswers = question.getOptions().stream()
-                    .filter(o -> Boolean.TRUE.equals(o.getIsCorrect()))
-                    .map(Quiz.Option::getId)
-                    .collect(Collectors.toList());
-
-            // Check if correct
-            boolean isCorrect = selectedOptions.size() == correctAnswers.size() &&
-                    selectedOptions.containsAll(correctAnswers) &&
-                    correctAnswers.containsAll(selectedOptions);
-
-            int pointsEarned = isCorrect ? question.getPoints() : 0;
-            earnedScore += pointsEarned;
-
-            // Save answer
-            answers.add(QuizAttempt.Answer.builder()
-                    .questionId(question.getId())
-                    .selectedOptions(selectedOptions)
-                    .isCorrect(isCorrect)
-                    .pointsEarned(pointsEarned)
-                    .build());
-
-            // Create question result
-            questionResults.add(QuizResultResponse.QuestionResult.builder()
-                    .questionId(question.getId())
-                    .question(question.getQuestion())
-                    .selectedOptions(selectedOptions)
-                    .correctAnswers(correctAnswers)
-                    .isCorrect(isCorrect)
-                    .pointsEarned(pointsEarned)
-                    .totalPoints(question.getPoints())
-                    .explanation(question.getExplanation())
-                    .build());
-        }
-
-        double percentage = totalScore > 0 ? ((double) earnedScore / totalScore) * 100 : 0;
-        boolean passed = percentage >= quiz.getPassingScore();
-
-        return new GradingResult(earnedScore, totalScore, percentage, passed, answers, questionResults);
-    }
-
-    private static class GradingResult {
-        int score;
-        int totalScore;
-        double percentage;
-        boolean passed;
-        List<QuizAttempt.Answer> answers;
-        List<QuizResultResponse.QuestionResult> questionResults;
-
-        GradingResult(int score, int totalScore, double percentage, boolean passed,
-                      List<QuizAttempt.Answer> answers, List<QuizResultResponse.QuestionResult> questionResults) {
-            this.score = score;
-            this.totalScore = totalScore;
-            this.percentage = percentage;
-            this.passed = passed;
-            this.answers = answers;
-            this.questionResults = questionResults;
-        }
     }
 }

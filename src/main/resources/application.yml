@@ -23,37 +23,28 @@ spring:
     resources:
       static-locations: classpath:/static/,file:uploads/
 
-# API key for mailbox validation
 mailboxlayer:
   api:
     key: 19dacce41e42ff30bc496ec3164e1cb0
 
-# JWT secret key
 jwt:
   secret: shapio-super-secret-key-abcxyz1234567890
 
-# App file upload config
 app:
   upload-dir: uploads/
 
 # ============================================
-# VNPAY Payment Configuration
+# PayOS Payment Configuration
 # ============================================
-vnpay:
-  # Merchant Info (Merchant riêng của bạn)
-  tmn-code: 60SBCZFK
-  hash-secret: O59YV1KLUB235EX45L5CAFDK1Z1MZUXN
+payos:
+  client-id: 20f87798-7fcc-4c38-9ad8-2db958f5e806
+  api-key: 4ec884f6-d69d-44ce-b69b-0277ffcd28cc
+  checksum-key: 945e5605eb1eb9be573fa0d1733aca3bbe9ebe834fa0993d52cc81455613a209
 
-  # VNPAY Gateway URLs
-  url: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+  # Endpoints
+  api-base-url: https://api-merchant.payos.vn
 
-  # Callback URLs - DÙNG NGROK PUBLIC URL
-  return-url: https://marilyn-unsubordinated-avianna.ngrok-free.dev/api/payment/vnpay/return
-  ipn-url: https://marilyn-unsubordinated-avianna.ngrok-free.dev/api/payment/vnpay/ipn
-
-  # Payment Settings
-  version: 2.1.0
-  command: pay
-  order-type: other
-  currency-code: VND
-  locale: vn
+  # URLs you registered on PayOS dashboard (adjust to your FE url / public webhook url)
+  return-url: http://localhost:5174/payment/return
+  cancel-url: http://localhost:5174/payment/cancel
+  webhook-url: http://localhost:8080/api/payment/payos/webhook

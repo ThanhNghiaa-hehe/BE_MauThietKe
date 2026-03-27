@@ -1,0 +1,171 @@
+{
+  "info": {
+    "_postman_id": "0e99a1a7-4c3d-4b2c-9b7d-5d9b5c3b8f80",
+    "name": "Cake Backend - QUIZ (Strategy + Factory + Observer)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Quiz APIs to test create/get/submit/attempts/passed. Grading uses Strategy + Factory (Question types), and publishes QuizSubmittedEvent (Observer)."
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "jwt", "value": "" },
+
+    { "key": "quizId", "value": "" },
+    { "key": "lessonId", "value": "" },
+    { "key": "courseId", "value": "" },
+    { "key": "chapterId", "value": "" },
+
+    { "key": "q1", "value": "q1" },
+    { "key": "q2", "value": "q2" },
+    { "key": "q3", "value": "q3" },
+
+    { "key": "q1o1", "value": "q1o1" },
+    { "key": "q1o2", "value": "q1o2" },
+
+    { "key": "q2o1", "value": "q2o1" },
+    { "key": "q2o2", "value": "q2o2" },
+    { "key": "q2o3", "value": "q2o3" },
+
+    { "key": "q3o1", "value": "q3o1" },
+    { "key": "q3o2", "value": "q3o2" }
+  ],
+  "item": [
+    {
+      "name": "Admin - Manage quizzes",
+      "item": [
+        {
+          "name": "Create quiz - POST /api/admin/quizzes/create",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lessonId\": \"{{lessonId}}\",\n  \"courseId\": \"{{courseId}}\",\n  \"chapterId\": \"{{chapterId}}\",\n  \"title\": \"Quiz demo (Strategy+Factory)\",\n  \"description\": \"Quiz gồm SINGLE, MULTIPLE, TRUE_FALSE\",\n  \"passingScore\": 70,\n  \"timeLimit\": 600,\n  \"maxAttempts\": 3,\n  \"questions\": [\n    {\n      \"id\": \"{{q1}}\",\n      \"question\": \"SINGLE: 2 + 2 = ?\",\n      \"type\": \"SINGLE_CHOICE\",\n      \"points\": 10,\n      \"explanation\": \"2 + 2 = 4\",\n      \"options\": [\n        {\n          \"id\": \"{{q1o1}}\",\n          \"text\": \"4\",\n          \"isCorrect\": true\n        },\n        {\n          \"id\": \"{{q1o2}}\",\n          \"text\": \"5\",\n          \"isCorrect\": false\n        }\n      ]\n    },\n    {\n      \"id\": \"{{q2}}\",\n      \"question\": \"MULTIPLE: Chọn các số chẵn\",\n      \"type\": \"MULTIPLE_CHOICE\",\n      \"points\": 10,\n      \"explanation\": \"Số chẵn chia hết cho 2\",\n      \"options\": [\n        {\n          \"id\": \"{{q2o1}}\",\n          \"text\": \"2\",\n          \"isCorrect\": true\n        },\n        {\n          \"id\": \"{{q2o2}}\",\n          \"text\": \"3\",\n          \"isCorrect\": false\n        },\n        {\n          \"id\": \"{{q2o3}}\",\n          \"text\": \"4\",\n          \"isCorrect\": true\n        }\n      ]\n    },\n    {\n      \"id\": \"{{q3}}\",\n      \"question\": \"TRUE/FALSE: Java là ngôn ngữ OOP\",\n      \"type\": \"TRUE_FALSE\",\n      \"points\": 10,\n      \"explanation\": \"Java hỗ trợ OOP\",\n      \"options\": [\n        {\n          \"id\": \"{{q3o1}}\",\n          \"text\": \"True\",\n          \"isCorrect\": true\n        },\n        {\n          \"id\": \"{{q3o2}}\",\n          \"text\": \"False\",\n          \"isCorrect\": false\n        }\n      ]\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/quizzes/create",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "admin", "quizzes", "create" ]
+            }
+          }
+        },
+        {
+          "name": "Get all quizzes - GET /api/admin/quizzes/all",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/quizzes/all",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "admin", "quizzes", "all" ]
+            }
+          }
+        },
+        {
+          "name": "Get quiz by id (admin, show correct) - GET /api/admin/quizzes/{quizId}",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/quizzes/{{quizId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "admin", "quizzes", "{{quizId}}" ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "User - Take quiz",
+      "item": [
+        {
+          "name": "Get quiz for student (hide correct) - GET /api/quizzes/{quizId}",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/quizzes/{{quizId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "quizzes", "{{quizId}}" ]
+            }
+          }
+        },
+        {
+          "name": "Submit quiz (PASS example) - POST /api/quizzes/submit",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quizId\": \"{{quizId}}\",\n  \"timeSpent\": 120,\n  \"startedAt\": \"2026-03-24T10:00:00\",\n  \"answers\": [\n    {\n      \"questionId\": \"{{q1}}\",\n      \"selectedOptions\": [\"{{q1o1}}\"]\n    },\n    {\n      \"questionId\": \"{{q2}}\",\n      \"selectedOptions\": [\"{{q2o1}}\", \"{{q2o3}}\"]\n    },\n    {\n      \"questionId\": \"{{q3}}\",\n      \"selectedOptions\": [\"{{q3o1}}\"]\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/quizzes/submit",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "quizzes", "submit" ]
+            }
+          }
+        },
+        {
+          "name": "Submit quiz (FAIL example - wrong answers) - POST /api/quizzes/submit",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quizId\": \"{{quizId}}\",\n  \"timeSpent\": 60,\n  \"startedAt\": \"2026-03-24T10:05:00\",\n  \"answers\": [\n    {\n      \"questionId\": \"{{q1}}\",\n      \"selectedOptions\": [\"{{q1o2}}\"]\n    },\n    {\n      \"questionId\": \"{{q2}}\",\n      \"selectedOptions\": [\"{{q2o2}}\"]\n    },\n    {\n      \"questionId\": \"{{q3}}\",\n      \"selectedOptions\": [\"{{q3o2}}\"]\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/quizzes/submit",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "quizzes", "submit" ]
+            }
+          }
+        },
+        {
+          "name": "Get attempts - GET /api/quizzes/{quizId}/attempts",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/quizzes/{{quizId}}/attempts",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "quizzes", "{{quizId}}", "attempts" ]
+            }
+          }
+        },
+        {
+          "name": "Has passed - GET /api/quizzes/{quizId}/passed",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/quizzes/{{quizId}}/passed",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "quizzes", "{{quizId}}", "passed" ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+

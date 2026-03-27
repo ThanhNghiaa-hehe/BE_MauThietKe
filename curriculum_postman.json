@@ -1,0 +1,85 @@
+{
+  "info": {
+    "_postman_id": "8fb39c03-3e40-4fa8-bb36-0f4c6b1a5b5e",
+    "name": "Cake Backend - CURRICULUM (Facade: Public + User)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Curriculum endpoints after introducing CurriculumFacade. Includes public (permitAll) and user (JWT) views. User view adds unlocked/completed/videoProgress/quizPassed fields."
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "jwt", "value": "" },
+    { "key": "courseId", "value": "" },
+    { "key": "chapterId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Public curriculum (no auth)",
+      "item": [
+        {
+          "name": "Get course chapters (PUBLIC) - GET /api/curriculum/course/{courseId}/chapters",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/curriculum/course/{{courseId}}/chapters",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "curriculum", "course", "{{courseId}}", "chapters" ]
+            }
+          }
+        },
+        {
+          "name": "Get chapter by id (PUBLIC) - GET /api/curriculum/chapters/{chapterId}",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/curriculum/chapters/{{chapterId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "curriculum", "chapters", "{{chapterId}}" ]
+            }
+          }
+        },
+        {
+          "name": "Get chapter lessons (PUBLIC) - GET /api/curriculum/chapters/{chapterId}/lessons",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/curriculum/chapters/{{chapterId}}/lessons",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "curriculum", "chapters", "{{chapterId}}", "lessons" ]
+            }
+          }
+        },
+        {
+          "name": "Get full curriculum (PUBLIC) - GET /api/curriculum/course/{courseId}/full",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/curriculum/course/{{courseId}}/full",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "curriculum", "course", "{{courseId}}", "full" ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "User curriculum (JWT required)",
+      "item": [
+        {
+          "name": "Get curriculum for user (Facade user-view) - GET /api/me/curriculum/course/{courseId}",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/me/curriculum/course/{{courseId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "me", "curriculum", "course", "{{courseId}}" ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+

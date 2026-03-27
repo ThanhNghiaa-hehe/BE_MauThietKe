@@ -5,6 +5,8 @@ import com.example.cake.auth.repository.UserRepository;
 import com.example.cake.payment.model.Payment;
 import com.example.cake.payment.service.PaymentService;
 import com.example.cake.response.ResponseMessage;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +18,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Payment Controller - VNPAY Integration
+ * Payment Controller - PayOS Integration
  */
 @Slf4j
 @RestController
@@ -28,15 +30,15 @@ public class PaymentController {
     private final UserRepository userRepository;
 
     /**
-     * Create VNPAY payment - Direct course purchase
+     * Create PayOS payment - Direct course purchase
      *
      * @param request Payment request with courseIds
      * @param httpRequest HTTP request to get IP
      * @param authentication User authentication
      * @return Payment URL
      */
-    @PostMapping("/vnpay/create")
-    public ResponseEntity<ResponseMessage<Map<String, String>>> createPayment(
+    @PostMapping("/payos/create")
+    public ResponseEntity<ResponseMessage<Map<String, String>>> createPayOSPayment(
             @RequestBody Map<String, Object> request,
             HttpServletRequest httpRequest,
             Authentication authentication
@@ -72,7 +74,7 @@ public class PaymentController {
         log.info("Create payment request from user: {} (email: {}), {} courses, IP: {}",
                 userId, email, courseIds.size(), ipAddress);
 
-        ResponseMessage<Map<String, String>> response = paymentService.createVNPayPayment(
+        ResponseMessage<Map<String, String>> response = paymentService.createPayOSPayment(
                 userId,
                 courseIds,
                 orderInfo,
@@ -83,44 +85,52 @@ public class PaymentController {
     }
 
     /**
-     * VNPAY Return URL - User redirect callback
-     * Called when VNPAY redirects user back (GET request with query params)
-     * Redirects to Frontend with payment result
+     * PayOS webhook callback (server-to-server).
+     * Expected schema (example):
+     * { code, desc, success, data: { orderCode, amount, ... , code, desc }, signature }
      */
-    @GetMapping("/vnpay/return")
-    public ResponseEntity<ResponseMessage<Map<String, Object>>> vnpayReturn(
-            @RequestParam Map<String, String> params
+    @PostMapping("/payos/webhook")
+    public ResponseEntity<ResponseMessage<Map<String, Object>>> payOSWebhook(
+            @RequestBody String rawBody,
+            @RequestHeader Map<String, String> headers
     ) {
-        log.info("VNPAY return callback received with {} params", params.size());
-        log.info("Params: {}", params);
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(rawBody);
 
-        ResponseMessage<Map<String, Object>> response = paymentService.processVNPayReturn(params);
-        return ResponseEntity.ok(response);
-    }
+            String signature = root.path("signature").asText(null);
+            boolean success = root.path("success").asBoolean(false);
+            String topCode = root.path("code").asText(null);
 
-    /**
-     * VNPAY IPN URL - Server-to-server callback
-     * Called by VNPAY server to confirm payment (GET request)
-     */
-    @GetMapping("/vnpay/ipn")
-    public ResponseEntity<Map<String, String>> vnpayIPN(
-            @RequestParam Map<String, String> params
-    ) {
-        log.info("VNPAY IPN callback received with {} params", params.size());
-        log.info("IPN Params: {}", params);
+            JsonNode data = root.path("data");
+            Long orderCode = data.path("orderCode").isMissingNode() ? null : data.path("orderCode").asLong();
+            Long amount = data.path("amount").isMissingNode() ? null : data.path("amount").asLong();
+            String dataCode = data.path("code").asText(null);
+            String reference = data.path("reference").asText(null);
+            String paymentLinkId = data.path("paymentLinkId").asText(null);
 
-        ResponseMessage<Map<String, Object>> result = paymentService.processVNPayReturn(params);
+            log.info("PayOS webhook received orderCode={} success={} code={} dataCode={} ref={} linkId={} headers={} ",
+                    orderCode, success, topCode, dataCode, reference, paymentLinkId, headers.keySet());
 
-        Map<String, String> response = new HashMap<>();
-        if (result.isSuccess()) {
-            response.put("RspCode", "00");
-            response.put("Message", "Confirm Success");
-        } else {
-            response.put("RspCode", "99");
-            response.put("Message", "Unknown error");
+            Map<String, String> params = new HashMap<>();
+            if (orderCode != null) params.put("orderCode", String.valueOf(orderCode));
+            if (amount != null) params.put("amount", String.valueOf(amount));
+            if (reference != null) params.put("reference", reference);
+            if (paymentLinkId != null) params.put("paymentLinkId", paymentLinkId);
+            if (signature != null) params.put("signature", signature);
+            params.put("rawBody", rawBody);
+
+            // Normalize status: successful if success==true OR code=="00" OR data.code=="00"
+            String normalizedCode = (dataCode != null) ? dataCode : topCode;
+            params.put("code", normalizedCode);
+            params.put("success", String.valueOf(success));
+
+            ResponseMessage<Map<String, Object>> response = paymentService.processPayOSCallback(params);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("PayOS webhook parse error: {}", e.getMessage(), e);
+            return ResponseEntity.ok(new ResponseMessage<>(false, "Webhook payload không hợp lệ", null));
         }
-
-        return ResponseEntity.ok(response);
     }
 
     /**
@@ -203,4 +213,3 @@ public class PaymentController {
         return ipAddress;
     }
 }
-

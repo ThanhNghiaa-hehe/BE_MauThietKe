@@ -1,0 +1,313 @@
+{
+  "info": {
+    "_postman_id": "6ac1f0aa-0f5c-4a54-8de4-aab78c6c7c3c",
+    "name": "Cake Course Backend - Payment (PayOS) - FULL",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Postman collection FULL flow for Auth + PayOS payment: login -> create payment link -> simulate PayOS webhook -> query status/history. Import this JSON into Postman."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "apiPrefix",
+      "value": "/api"
+    },
+    {
+      "key": "jwt",
+      "value": ""
+    },
+    {
+      "key": "email",
+      "value": "user@example.com"
+    },
+    {
+      "key": "password",
+      "value": "123456"
+    },
+    {
+      "key": "paymentId",
+      "value": ""
+    },
+    {
+      "key": "orderCode",
+      "value": ""
+    },
+    {
+      "key": "courseId1",
+      "value": ""
+    },
+    {
+      "key": "courseId2",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "0) Auth",
+      "item": [
+        {
+          "name": "Login (JWT) - POST {{baseUrl}}/api/auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{apiPrefix}}",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Expected response: ResponseMessage<JwtResponse>",
+                  "// Try common token field names to be resilient.",
+                  "let json = {};",
+                  "try { json = pm.response.json(); } catch (e) {}",
+                  "const data = json.data || {};",
+                  "const token = data.token || data.accessToken || data.jwt || data.access_token;",
+                  "if (token) {",
+                  "  pm.collectionVariables.set('jwt', token);",
+                  "  console.log('Saved jwt to collection variables');",
+                  "} else {",
+                  "  console.log('Could not find token in response. Check response schema.');",
+                  "}",
+                  "pm.test('Login request returned HTTP 200', function(){ pm.expect(pm.response.code).to.equal(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1) Payment - PayOS",
+      "item": [
+        {
+          "name": "Create PayOS Payment Link (Direct purchase) - POST /api/payment/payos/create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseIds\": [\n    \"{{courseId1}}\"\n  ],\n  \"orderInfo\": \"Thanh toan khoa hoc (PayOS)\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/payment/payos/create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{apiPrefix}}",
+                "payment",
+                "payos",
+                "create"
+              ]
+            },
+            "description": "Backend: PaymentController#createPayOSPayment. ResponseMessage<Map<String,String>> with data.paymentUrl and data.paymentId."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let json = {};",
+                  "try { json = pm.response.json(); } catch (e) {}",
+                  "const data = json.data || {};",
+                  "if (data.paymentId) pm.collectionVariables.set('paymentId', data.paymentId);",
+                  "// orderCode isn't returned by API, but is stored in Payment.providerOrderCode computed from paymentId hash.",
+                  "// We'll fetch it via Get Payment Status after creation.",
+                  "pm.test('Create payment returned HTTP 200', function(){ pm.expect(pm.response.code).to.equal(200); });",
+                  "pm.test('Response has success field', function(){ pm.expect(json).to.have.property('success'); });",
+                  "pm.test('Response has paymentUrl', function(){ pm.expect(data.paymentUrl).to.be.ok; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Payment Status by paymentId - GET /api/payment/{{paymentId}}/status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/payment/{{paymentId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{apiPrefix}}",
+                "payment",
+                "{{paymentId}}",
+                "status"
+              ]
+            },
+            "description": "Use this right after Create to retrieve providerOrderCode (PayOS orderCode) from Payment entity."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let json = {};",
+                  "try { json = pm.response.json(); } catch (e) {}",
+                  "const payment = json.data || {};",
+                  "if (payment.providerOrderCode) {",
+                  "  pm.collectionVariables.set('orderCode', String(payment.providerOrderCode));",
+                  "  console.log('Saved orderCode=' + payment.providerOrderCode);",
+                  "}",
+                  "pm.test('Get payment status returned HTTP 200', function(){ pm.expect(pm.response.code).to.equal(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Simulate PayOS Webhook SUCCESS - POST /api/payment/payos/webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"00\",\n  \"desc\": \"success\",\n  \"success\": true,\n  \"data\": {\n    \"orderCode\": {{orderCode}},\n    \"amount\": 3000,\n    \"description\": \"VQRIO{{orderCode}}\",\n    \"accountNumber\": \"12345678\",\n    \"reference\": \"TEST_REF_{{orderCode}}\",\n    \"transactionDateTime\": \"2026-03-24 18:25:00\",\n    \"currency\": \"VND\",\n    \"paymentLinkId\": \"TEST_LINK_{{orderCode}}\",\n    \"code\": \"00\",\n    \"desc\": \"Thành công\",\n    \"counterAccountBankId\": \"\",\n    \"counterAccountBankName\": \"\",\n    \"counterAccountName\": \"\",\n    \"counterAccountNumber\": \"\",\n    \"virtualAccountName\": \"\",\n    \"virtualAccountNumber\": \"\"\n  },\n  \"signature\": \"DEV_SKIP_SIGNATURE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/payment/payos/webhook",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{apiPrefix}}",
+                "payment",
+                "payos",
+                "webhook"
+              ]
+            },
+            "description": "Dev simulation: current PayOSGateway.verifyCallbackSignature() accepts callbacks if orderCode exists when rawBody/signature verification isn't satisfied. If you enforce signature later, update this request to use a correct signature."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Webhook returned HTTP 200', function(){ pm.expect(pm.response.code).to.equal(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get My Payments - GET /api/payment/my-payments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/payment/my-payments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{apiPrefix}}",
+                "payment",
+                "my-payments"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Get my payments returned HTTP 200', function(){ pm.expect(pm.response.code).to.equal(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get My Successful Payments - GET /api/payment/my-payments/success",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/payment/my-payments/success",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "{{apiPrefix}}",
+                "payment",
+                "my-payments",
+                "success"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Get my successful payments returned HTTP 200', function(){ pm.expect(pm.response.code).to.equal(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+

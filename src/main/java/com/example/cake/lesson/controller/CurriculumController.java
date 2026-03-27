@@ -2,8 +2,7 @@ package com.example.cake.lesson.controller;
 
 import com.example.cake.lesson.model.Chapter;
 import com.example.cake.lesson.model.Lesson;
-import com.example.cake.lesson.service.ChapterService;
-import com.example.cake.lesson.service.LessonService;
+import com.example.cake.lesson.service.CurriculumFacade;
 import com.example.cake.response.ResponseMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,8 +19,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CurriculumController {
 
-    private final ChapterService chapterService;
-    private final LessonService lessonService;
+    private final CurriculumFacade curriculumFacade;
 
     /**
      * Lấy tất cả chapters của một khóa học (PUBLIC)
@@ -29,7 +27,7 @@ public class CurriculumController {
      */
     @GetMapping("/course/{courseId}/chapters")
     public ResponseEntity<ResponseMessage<List<Chapter>>> getCourseChapters(@PathVariable String courseId) {
-        return ResponseEntity.ok(chapterService.getChaptersByCourse(courseId));
+        return ResponseEntity.ok(curriculumFacade.getCourseChaptersPublic(courseId));
     }
 
     /**
@@ -37,7 +35,7 @@ public class CurriculumController {
      */
     @GetMapping("/chapters/{chapterId}")
     public ResponseEntity<ResponseMessage<Chapter>> getChapterById(@PathVariable String chapterId) {
-        return ResponseEntity.ok(chapterService.getChapterById(chapterId));
+        return ResponseEntity.ok(curriculumFacade.getChapterByIdPublic(chapterId));
     }
 
     /**
@@ -47,7 +45,7 @@ public class CurriculumController {
      */
     @GetMapping("/chapters/{chapterId}/lessons")
     public ResponseEntity<ResponseMessage<List<Lesson>>> getChapterLessons(@PathVariable String chapterId) {
-        return ResponseEntity.ok(lessonService.getLessonsByChapter(chapterId));
+        return ResponseEntity.ok(curriculumFacade.getChapterLessonsPublic(chapterId));
     }
 
     /**
@@ -56,7 +54,6 @@ public class CurriculumController {
      */
     @GetMapping("/course/{courseId}/full")
     public ResponseEntity<ResponseMessage<List<Lesson>>> getFullCurriculum(@PathVariable String courseId) {
-        return ResponseEntity.ok(lessonService.getLessonsByCourse(courseId));
+        return ResponseEntity.ok(curriculumFacade.getFullCurriculumPublic(courseId));
     }
 }
-

@@ -1,6 +1,5 @@
 package com.example.cake.favorite.model;
 
-import com.example.cake.cart.model.CartItem;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

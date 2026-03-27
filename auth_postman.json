@@ -1,0 +1,204 @@
+{
+  "info": {
+    "_postman_id": "c50c7c49-1a0c-4d11-9e47-4a7f7b3e5f66",
+    "name": "Cake Course Backend - AUTH (Register/Login/OTP/Refresh)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Auth collection: register -> verify OTP -> login -> refresh token. Uses existing endpoints under /api/auth/* ."
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "apiPrefix", "value": "/api" },
+
+    { "key": "email", "value": "test_user_01@gmail.com" },
+    { "key": "password", "value": "123456" },
+    { "key": "fullname", "value": "Test User" },
+    { "key": "phoneNumber", "value": "0123456789" },
+
+    { "key": "registerToken", "value": "" },
+    { "key": "otp", "value": "" },
+
+    { "key": "jwt", "value": "" },
+    { "key": "googleIdToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1) Register + OTP",
+      "item": [
+        {
+          "name": "Register (send OTP) - POST /api/auth/register",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"fullname\": \"{{fullname}}\",\n  \"phoneNumber\": \"{{phoneNumber}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/auth/register",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "{{apiPrefix}}", "auth", "register" ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "const data = json.data || {};",
+                  "if (data.token) pm.collectionVariables.set('registerToken', data.token);",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.equal(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify OTP (create account) - POST /api/auth/verify-otp",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{registerToken}}\",\n  \"otp\": \"{{otp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/auth/verify-otp",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "{{apiPrefix}}", "auth", "verify-otp" ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.equal(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resend OTP - POST /api/auth/resend-otp",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{registerToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/auth/resend-otp",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "{{apiPrefix}}", "auth", "resend-otp" ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2) Login",
+      "item": [
+        {
+          "name": "Login (LOCAL) - POST /api/auth/login",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/auth/login",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "{{apiPrefix}}", "auth", "login" ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "const data = json.data || {};",
+                  "const token = data.accessToken || data.token || data.jwt;",
+                  "if (token) pm.collectionVariables.set('jwt', token);",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.equal(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login (GOOGLE) - POST /api/auth/google",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idToken\": \"{{googleIdToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/auth/google",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "{{apiPrefix}}", "auth", "google" ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "const data = json.data || {};",
+                  "const token = data.accessToken || data.token || data.jwt;",
+                  "if (token) pm.collectionVariables.set('jwt', token);",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.equal(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3) Refresh token",
+      "item": [
+        {
+          "name": "Refresh token (from cookie refreshToken) - POST /api/auth/refresh-token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/auth/refresh-token",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "{{apiPrefix}}", "auth", "refresh-token" ]
+            },
+            "description": "This endpoint reads refreshToken from cookies. In Postman, enable 'Automatically follow redirects' and ensure cookies are preserved for the domain after calling Login first."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let json = {}; try { json = pm.response.json(); } catch (e) {}",
+                  "const data = json.data || {};",
+                  "const token = data.accessToken || data.token || data.jwt;",
+                  "if (token) pm.collectionVariables.set('jwt', token);",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.equal(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+

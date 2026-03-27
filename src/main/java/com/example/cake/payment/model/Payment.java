@@ -12,7 +12,7 @@ import java.util.List;
 
 /**
  * Payment entity - Track payment transactions
- * Updated: Removed cart/order dependency, stores course info directly
+ * Stores course info directly.
  */
 @Document(collection = "payments")
 @Data
@@ -26,24 +26,29 @@ public class Payment {
 
     private String userId;
 
-    // Course information - stored directly in payment
-    private List<PaymentCourseItem> courses;  // List of courses being purchased
+    private List<PaymentCourseItem> courses;
 
-    // VNPAY transaction info
-    private Long amount;                    // Số tiền (VNĐ)
-    private String vnpTxnRef;               // Mã giao dịch (payment ID)
-    private String vnpTransactionNo;        // Mã giao dịch VNPAY
-    private String vnpBankCode;             // Mã ngân hàng
-    private String vnpResponseCode;         // Mã phản hồi (00 = success)
-    private String vnpOrderInfo;            // Mô tả đơn hàng
+    /** Amount in VND */
+    private Long amount;
 
-    // Payment status
-    private PaymentStatus status;           // PENDING, SUCCESS, FAILED, CANCELLED
-    private PaymentMethod paymentMethod;    // VNPAY, MOMO, etc.
+    /** Human readable order info/description */
+    private String orderInfo;
 
-    // URLs
-    private String returnUrl;
-    private String ipnUrl;
+    // Gateway-neutral tracking
+    private PaymentStatus status;
+    private PaymentMethod paymentMethod;
+
+    /** Provider-side order code (PayOS orderCode) */
+    private Long providerOrderCode;
+
+    /** Provider-side transaction/reference id (if any) */
+    private String providerTransactionId;
+
+    /** Provider response code/status */
+    private String providerResponseCode;
+
+    /** Checkout URL that user is redirected to */
+    private String checkoutUrl;
 
     // Tracking
     private LocalDateTime createdAt;
@@ -51,24 +56,18 @@ public class Payment {
 
     // Additional info
     private String ipAddress;
-    private String locale;                  // vn hoặc en
 
     public enum PaymentStatus {
-        PENDING,        // Chờ thanh toán
-        SUCCESS,        // Thành công
-        FAILED,         // Thất bại
-        CANCELLED       // Đã hủy
+        PENDING,
+        SUCCESS,
+        FAILED,
+        CANCELLED
     }
 
     public enum PaymentMethod {
-        VNPAY,
-        MOMO,
-        BANK_TRANSFER
+        PAYOS
     }
 
-    /**
-     * Payment Course Item - Store course info in payment
-     */
     @Data
     @Builder
     @NoArgsConstructor
@@ -77,11 +76,10 @@ public class Payment {
         private String courseId;
         private String title;
         private String thumbnailUrl;
-        private Double price;              // Giá gốc
-        private Double discountedPrice;    // Giá sau giảm
-        private Integer discountPercent;   // % giảm giá
+        private Double price;
+        private Double discountedPrice;
+        private Integer discountPercent;
         private String instructorName;
         private String level;
     }
 }
-
