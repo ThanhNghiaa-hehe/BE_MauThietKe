@@ -1,0 +1,1263 @@
+{
+  "info": {
+    "_postman_id": "c1b96a53-2bd5-4d5e-9c1a-0e2c9f2e3a1a",
+    "name": "E-Learning API (FULL) - v2 (Accurate DTO Bodies)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Rebuilt collection based on controllers + DTOs in src/main/java. Includes Auth, Users, Courses, Curriculum, Chapters, Lessons, Progress, Quiz, Favorites, Payment PayOS."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "randomEmail",
+      "value": ""
+    },
+    {
+      "key": "loginEmail",
+      "value": ""
+    },
+    {
+      "key": "otpToken",
+      "value": ""
+    },
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "courseId",
+      "value": ""
+    },
+    {
+      "key": "chapterId",
+      "value": ""
+    },
+    {
+      "key": "lessonId",
+      "value": ""
+    },
+    {
+      "key": "quizId",
+      "value": ""
+    },
+    {
+      "key": "paymentId",
+      "value": ""
+    },
+    {
+      "key": "checkoutUrl",
+      "value": ""
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Generate random email once per run",
+          "if (!pm.collectionVariables.get('randomEmail')) {",
+          "  const ts = Date.now();",
+          "  pm.collectionVariables.set('randomEmail', `student_${ts}@example.com`);",
+          "}",
+          "",
+          "// Auto attach USER token if present",
+          "const token = pm.collectionVariables.get('token');",
+          "if (token && token.trim()) {",
+          "  pm.request.headers.upsert({ key: 'Authorization', value: 'Bearer ' + token });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "00 - Auth (User)",
+      "item": [
+        {
+          "name": "Register (captures otpToken + loginEmail)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let json = {};",
+                  "try { json = pm.response.json(); } catch (e) {}",
+                  "const otpToken = json?.data?.token || json?.data?.otpToken || json?.token;",
+                  "if (otpToken) pm.collectionVariables.set('otpToken', otpToken);",
+                  "",
+                  "try {",
+                  "  const body = pm.request.body?.raw ? JSON.parse(pm.request.body.raw) : null;",
+                  "  if (body?.email) pm.collectionVariables.set('loginEmail', body.email);",
+                  "} catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{randomEmail}}\",\n  \"password\": \"123456\",\n  \"fullname\": \"Student One\",\n  \"phoneNumber\": \"0123456789\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify OTP (uses {{otpToken}})",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-otp",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "verify-otp"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{otpToken}}\",\n  \"otp\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login (captures {{token}})",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let json = {};",
+                  "try { json = pm.response.json(); } catch (e) {}",
+                  "const token = json?.data?.accessToken || json?.data?.token || json?.accessToken || json?.token;",
+                  "if (token) pm.collectionVariables.set('token', token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{loginEmail}}\",\n  \"password\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh-token",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "refresh-token"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Resend OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/resend-otp",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "resend-otp"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{otpToken}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login with Google",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/google",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "google"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idToken\": \"GOOGLE_ID_TOKEN\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Forget password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/forget-password",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "forget-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{loginEmail}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify OTP (password)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-otpPassword",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "verify-otpPassword"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{otpToken}}\",\n  \"otp\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Reset password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/reset-password",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "reset-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{loginEmail}}\",\n  \"newPassword\": \"12345678\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 - Users (Me)",
+      "item": [
+        {
+          "name": "Get my userId (captures {{userId}})",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let json = {};",
+                  "try { json = pm.response.json(); } catch (e) {}",
+                  "const id = json?.data?.id || json?.data?._id;",
+                  "if (id) pm.collectionVariables.set('userId', id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/users/find-userId",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "find-userId"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Courses (Public)",
+      "item": [
+        {
+          "name": "List published courses",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/courses",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "courses"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get course by id",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/courses/{{courseId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "courses",
+                "{{courseId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Curriculum",
+      "item": [
+        {
+          "name": "Public: chapters of course",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/curriculum/course/{{courseId}}/chapters",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "curriculum",
+                "course",
+                "{{courseId}}",
+                "chapters"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Public: lessons of chapter",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/curriculum/chapters/{{chapterId}}/lessons",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "curriculum",
+                "chapters",
+                "{{chapterId}}",
+                "lessons"
+              ]
+            }
+          }
+        },
+        {
+          "name": "User: curriculum with unlock/completed",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/me/curriculum/course/{{courseId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "me",
+                "curriculum",
+                "course",
+                "{{courseId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Public: get chapter by id",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/curriculum/chapters/{{chapterId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "curriculum",
+                "chapters",
+                "{{chapterId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Public: full curriculum course",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/curriculum/course/{{courseId}}/full",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "curriculum",
+                "course",
+                "{{courseId}}",
+                "full"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Admin Setup (requires adminToken set manually)",
+      "item": [
+        {
+          "name": "Create course category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/course-categories/create",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "course-categories",
+                "create"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"WEB\",\n  \"name\": \"Web Development\",\n  \"description\": \"Category for web courses\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/course-categories/getAll",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "course-categories",
+                "getAll"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create course (captures {{courseId}})",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let json = {};",
+                  "try { json = pm.response.json(); } catch (e) {}",
+                  "const id = json?.data?.id || json?.data?._id;",
+                  "if (id) pm.collectionVariables.set('courseId', id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses/create",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "courses",
+                "create"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryCode\": \"WEB\",\n  \"title\": \"React + Spring Boot Fullstack\",\n  \"description\": \"Khoa hoc fullstack\",\n  \"price\": 360000,\n  \"thumbnailUrl\": \"http://localhost:8080/static/courses/demo.jpg\",\n  \"duration\": 20,\n  \"level\": \"Beginner\",\n  \"isPublished\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "List courses (admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses/getAll",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "courses",
+                "getAll"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get course by id (admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses/{{courseId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "courses",
+                "{{courseId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update course (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses/update",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "courses",
+                "update"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{courseId}}\",\n  \"title\": \"React + Spring Boot (Updated)\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete course (admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses/delete/{{courseId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "courses",
+                "delete",
+                "{{courseId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create chapter (captures {{chapterId}})",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let json = {};",
+                  "try { json = pm.response.json(); } catch (e) {}",
+                  "const id = json?.data?.id || json?.data?._id;",
+                  "if (id) pm.collectionVariables.set('chapterId', id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/chapters/create",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "chapters",
+                "create"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"{{courseId}}\",\n  \"title\": \"Chuong 1: Bat dau\",\n  \"description\": \"Intro\",\n  \"order\": 1,\n  \"isFree\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "List chapters by course (admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/chapters/course/{{courseId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "chapters",
+                "course",
+                "{{courseId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get chapter by id (admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/chapters/{{chapterId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "chapters",
+                "{{chapterId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update chapter (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/chapters/{{chapterId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "chapters",
+                "{{chapterId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Chuong 1 (Updated)\",\n  \"order\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete chapter (admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/chapters/{{chapterId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "chapters",
+                "{{chapterId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create lesson (captures {{lessonId}})",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let json = {};",
+                  "try { json = pm.response.json(); } catch (e) {}",
+                  "const id = json?.data?.id || json?.data?._id;",
+                  "if (id) pm.collectionVariables.set('lessonId', id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/lessons/create",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "lessons",
+                "create"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chapterId\": \"{{chapterId}}\",\n  \"courseId\": \"{{courseId}}\",\n  \"title\": \"Lesson 1: Gioi thieu\",\n  \"description\": \"Mo dau\",\n  \"order\": 1,\n  \"duration\": 10,\n  \"isFree\": true,\n  \"requiredPreviousLesson\": null,\n  \"videoUrl\": \"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\n  \"videoId\": null,\n  \"videoType\": \"YOUTUBE\",\n  \"videoThumbnail\": \"https://example.com/thumb.jpg\",\n  \"contentType\": \"TEXT\",\n  \"content\": \"Noi dung bai hoc\",\n  \"codeSnippets\": [],\n  \"attachments\": [],\n  \"hasQuiz\": false,\n  \"quiz\": null\n}"
+            }
+          }
+        },
+        {
+          "name": "List lessons by chapter (admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/lessons/chapter/{{chapterId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "lessons",
+                "chapter",
+                "{{chapterId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List lessons by course (admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/lessons/course/{{courseId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "lessons",
+                "course",
+                "{{courseId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get lesson by id (admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/lessons/{{lessonId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "lessons",
+                "{{lessonId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update lesson (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/lessons/{{lessonId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "lessons",
+                "{{lessonId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Lesson 1 (Updated)\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete lesson (admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/lessons/{{lessonId}}",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "lessons",
+                "{{lessonId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List quizzes (admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/quizzes/all",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "quizzes",
+                "all"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 - Payment (PayOS)",
+      "item": [
+        {
+          "name": "Create PayOS payment link (captures checkoutUrl)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let json = {};",
+                  "try { json = pm.response.json(); } catch (e) {}",
+                  "const url = json?.data?.checkoutUrl || json?.data?.paymentUrl || json?.data?.url;",
+                  "if (url) pm.collectionVariables.set('checkoutUrl', url);",
+                  "const pid = json?.data?.paymentId || json?.data?.id || json?.data?._id;",
+                  "if (pid) pm.collectionVariables.set('paymentId', pid);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payment/payos/create",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payment",
+                "payos",
+                "create"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseIds\": [\n    \"{{courseId}}\"\n  ],\n  \"orderInfo\": \"Thanh toan khoa hoc (PayOS)\"\n}"
+            }
+          }
+        },
+        {
+          "name": "PayOS webhook (simulate)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payment/payos/webhook",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payment",
+                "payos",
+                "webhook"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"00\",\n  \"desc\": \"success\",\n  \"success\": true,\n  \"data\": {\n    \"orderCode\": 123,\n    \"amount\": 3000,\n    \"description\": \"VQRIO123\",\n    \"accountNumber\": \"12345678\",\n    \"reference\": \"TF230204212323\",\n    \"transactionDateTime\": \"2023-02-04 18:25:00\",\n    \"currency\": \"VND\",\n    \"paymentLinkId\": \"124c33293c43417ab7879e14c8d9eb18\",\n    \"code\": \"00\",\n    \"desc\": \"Thành công\"\n  },\n  \"signature\": \"YOUR_SIGNATURE\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Payment status (by paymentId)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/payment/{{paymentId}}/status",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payment",
+                "{{paymentId}}",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "My payments",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/payment/my-payments",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payment",
+                "my-payments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "My successful payments",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/payment/my-payments/success",
+              "protocol": "http",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payment",
+                "my-payments",
+                "success"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
