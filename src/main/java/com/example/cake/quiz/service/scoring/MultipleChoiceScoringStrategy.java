@@ -18,24 +18,14 @@ public class MultipleChoiceScoringStrategy extends AbstractOptionBasedScoringStr
 
     @Override
     public ScoredQuestion score(Quiz.Question question, List<String> selectedOptions) {
-        List<String> correct = correctAnswers(question);
-        List<String> selected = selectedOptions != null ? selectedOptions : List.of();
+        return scoreTemplate(question, selectedOptions);
+    }
 
-        boolean isCorrect = selected.size() == correct.size()
+    @Override
+    protected boolean isCorrectSelection(Quiz.Question question, List<String> selected, List<String> correct) {
+        // Must match exact set (order independent)
+        return selected.size() == correct.size()
                 && selected.containsAll(correct)
                 && correct.containsAll(selected);
-
-        int points = isCorrect ? safePoints(question) : 0;
-
-        return new ScoredQuestion(
-                points,
-                buildSavedAnswer(question, selected, isCorrect, points),
-                buildQuestionResult(question, selected, correct, isCorrect, points)
-        );
-    }
-
-    private int safePoints(Quiz.Question q) {
-        return q.getPoints() != null ? q.getPoints() : 0;
     }
 }
-

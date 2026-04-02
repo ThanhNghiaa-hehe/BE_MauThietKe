@@ -14,6 +14,7 @@ import org.springframework.web.client.RestTemplate;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.Map;
 
@@ -30,17 +31,11 @@ public class PayOSService {
     private final RestTemplate restTemplate = new RestTemplate();
 
     /**
-     * Create PayOS payment link and return checkoutUrl + orderCode.
-     *
-     * PayOS create-link signature:
-     * - Use exactly 5 fields: amount, cancelUrl, description, orderCode, returnUrl
-     * - Canonical string format: key=value joined by '&' in that exact order
-     * - IMPORTANT: values are NOT URL-encoded when signing (PayOS verifies raw string).
+     * Create PayOS payment link and return checkoutUrl + orderCode (+ optional paymentLinkId).
      */
     public Map<String, Object> createPaymentLink(long orderCode, long amount, String description) {
         String url = payOSConfig.getApiBaseUrl() + "/v2/payment-requests";
 
-        // Build payload sent to PayOS (schema strict: webhookUrl MUST NOT be present)
         JSONObject body = new JSONObject();
         body.put("orderCode", orderCode);
         body.put("amount", amount);
@@ -53,6 +48,9 @@ public class PayOSService {
 
         String signature = hmacSHA256(payOSConfig.getChecksumKey(), canonicalString);
         body.put("signature", signature);
+
+        log.info("[PayOS] createPaymentLink: returnUrl={} cancelUrl={} orderCode={} amount={} desc={}",
+                payOSConfig.getReturnUrl(), payOSConfig.getCancelUrl(), orderCode, amount, description);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -67,8 +65,6 @@ public class PayOSService {
         }
 
         JSONObject json = new JSONObject(response.getBody());
-
-        // PayOS can respond using either: {success:true,data:{...}} OR {code:"00",desc:"...",data:{...}}
         boolean successFlag = json.optBoolean("success", false);
         String code = json.optString("code", "");
         String desc = json.optString("desc", json.optString("message", "unknown"));
@@ -87,10 +83,20 @@ public class PayOSService {
             throw new RuntimeException("PayOS create payment link failed: Missing data in response");
         }
 
-        return Map.of(
-                "checkoutUrl", data.optString("checkoutUrl"),
-                "orderCode", data.optLong("orderCode")
-        );
+        String checkoutUrl = data.optString("checkoutUrl", "");
+        String paymentLinkId = data.optString("paymentLinkId", "");
+        long returnedOrderCode = data.has("orderCode") ? data.optLong("orderCode") : orderCode;
+
+        log.info("[PayOS] createPaymentLink success: orderCode={} paymentLinkId={} checkoutUrl={}",
+                returnedOrderCode, paymentLinkId, checkoutUrl);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("checkoutUrl", checkoutUrl);
+        // Keep a stable alias for FE in case they prefer paymentUrl naming.
+        result.put("paymentUrl", checkoutUrl);
+        result.put("orderCode", returnedOrderCode);
+        if (!paymentLinkId.isBlank()) result.put("paymentLinkId", paymentLinkId);
+        return result;
     }
 
     private String buildCreateLinkCanonicalString(long orderCode, long amount, String description, String returnUrl, String cancelUrl) {
@@ -104,14 +110,17 @@ public class PayOSService {
 
     /**
      * Verify PayOS webhook signature.
-     * Many setups sign the raw body using checksumKey.
      */
     public boolean verifyWebhookSignature(String rawBody, String signature) {
         if (signature == null || signature.isBlank()) {
             return false;
         }
         String calculated = hmacSHA256(payOSConfig.getChecksumKey(), rawBody);
-        return calculated.equalsIgnoreCase(signature.trim());
+        boolean ok = calculated.equalsIgnoreCase(signature.trim());
+        if (!ok) {
+            log.warn("[PayOS] webhook signature mismatch. received={} calculated={}", signature, calculated);
+        }
+        return ok;
     }
 
     private String hmacSHA256(String key, String data) {

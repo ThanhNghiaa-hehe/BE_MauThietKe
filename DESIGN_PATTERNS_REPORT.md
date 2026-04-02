@@ -2,7 +2,7 @@
 
 > Dự án: **Hệ thống bán khóa học / E-learning** (Spring Boot + MongoDB)
 >
-> Ngày tạo: **2026-03-24**
+> Ngày tạo: **2026-03-27**
 >
 > Mục tiêu: Tài liệu này tối ưu để **nộp báo cáo môn “Mẫu thiết kế phần mềm”**. Mỗi mẫu có 4 phần:
 > - **Intent** (mục đích)
@@ -196,28 +196,19 @@ Tách các side-effect sau khi submit quiz (ví dụ cập nhật progress) ra k
 Publish event trong `QuizService`:
 
 ```java
-eventPublisher.publishEvent(QuizSubmittedEvent.builder()
-        .userId(userId)
-        .quizId(quiz.getId())
-        .lessonId(quiz.getLessonId())
-        .percentage(attempt.getPercentage())
-        .passed(attempt.getPassed())
-        .attempt(attempt)
-        .build());
+// (trích) QuizService publish event
+// eventPublisher.publishEvent(QuizSubmittedEvent.builder()...build());
 ```
 
 Listener nhận event:
 
 ```java
+// (trích) QuizProgressListener
 @EventListener
 public void onQuizSubmitted(QuizSubmittedEvent event) {
-    if (!Boolean.TRUE.equals(event.getPassed())) {
-        return;
+    if (Boolean.TRUE.equals(event.getPassed()) && event.getLessonId() != null) {
+        progressService.updateQuizPassed(event.getUserId(), event.getLessonId(), event.getPercentage());
     }
-    if (event.getLessonId() == null || event.getLessonId().isBlank()) {
-        return;
-    }
-    progressService.updateQuizPassed(event.getUserId(), event.getLessonId(), event.getPercentage());
 }
 ```
 
@@ -256,12 +247,9 @@ public interface ProgressState {
 Ví dụ service dùng state để quyết định:
 
 ```java
-ProgressState currentState = stateResolver.resolve(progress);
-ProgressContext ctx = new ProgressContext(progress, lesson, percent, canAccess, alreadyCompleted);
-StateTransitionResult transition = currentState.updateVideoProgress(ctx);
-if (!transition.isAllowed()) {
-    return new ResponseMessage<>(false, transition.getMessage(), progress);
-}
+// (trích) ProgressService delegate sang state
+// StateTransitionResult transition = currentState.updateVideoProgress(ctx);
+// if (!transition.isAllowed()) return new ResponseMessage<>(false, transition.getMessage(), progress);
 ```
 
 ### Where used
@@ -284,16 +272,10 @@ Tách các tác vụ phụ sau khi hoàn thành lesson/course (achievement/analy
 - **Listener**: `ProgressAchievementListener`
 
 ### Code
-Publisher (ví dụ lesson completed):
 
 ```java
-eventPublisher.publishEvent(LessonCompletedEvent.builder()
-        .userId(userId)
-        .courseId(lesson.getCourseId())
-        .lessonId(lessonId)
-        .totalProgress(progress.getTotalProgress())
-        .completedAt(lessonProgress.getCompletedAt())
-        .build());
+// (trích) ProgressService publish event
+// eventPublisher.publishEvent(LessonCompletedEvent.builder()...build());
 ```
 
 ### Where used
@@ -353,7 +335,151 @@ public ResponseEntity<ResponseMessage<List<Chapter>>> getCourseChapters(@PathVar
 
 ---
 
-## 9) Payment (Strategy/Factory/Facade/Observer) – (tham khảo module payment)
+## 9) Template Method – Quiz option-based scoring
+
+### Intent
+Chuẩn hoá quy trình chấm điểm câu hỏi dạng “chọn đáp án” theo một khung thuật toán cố định, tránh lặp code giữa nhiều strategy.
+
+### Structure
+- **Abstract class (Template)**: `AbstractOptionBasedScoringStrategy`
+  - `scoreTemplate(...)` là template method
+  - `isCorrectSelection(...)` là hook/primitive operation
+- **Concrete classes**:
+  - `SingleChoiceScoringStrategy`
+  - `MultipleChoiceScoringStrategy`
+  - `TrueFalseScoringStrategy`
+
+### Code
+Template method + hook:
+
+```java
+protected final ScoredQuestion scoreTemplate(Quiz.Question question, List<String> selectedOptions) {
+    List<String> correct = correctAnswers(question);
+    List<String> selected = safeSelected(selectedOptions);
+
+    boolean isCorrect = isCorrectSelection(question, selected, correct);
+    int points = isCorrect ? safePoints(question) : 0;
+
+    return new ScoredQuestion(
+            points,
+            buildSavedAnswer(question, selected, isCorrect, points),
+            buildQuestionResult(question, selected, correct, isCorrect, points)
+    );
+}
+
+protected abstract boolean isCorrectSelection(Quiz.Question question, List<String> selected, List<String> correct);
+```
+
+Ví dụ 1 concrete override hook (MULTIPLE_CHOICE):
+
+```java
+@Override
+protected boolean isCorrectSelection(Quiz.Question question, List<String> selected, List<String> correct) {
+    return selected.size() == correct.size()
+            && selected.containsAll(correct)
+            && correct.containsAll(selected);
+}
+```
+
+### Where used
+- Template: `src/main/java/com/example/cake/quiz/service/scoring/AbstractOptionBasedScoringStrategy.java`
+- Concrete:
+  - `src/main/java/com/example/cake/quiz/service/scoring/SingleChoiceScoringStrategy.java`
+  - `src/main/java/com/example/cake/quiz/service/scoring/MultipleChoiceScoringStrategy.java`
+  - `src/main/java/com/example/cake/quiz/service/scoring/TrueFalseScoringStrategy.java`
+
+---
+
+## 10) Adapter – PayOS Webhook Adapter
+
+### Intent
+PayOS webhook có schema JSON riêng (adaptee). Adapter chuyển payload PayOS → params map chuẩn hoá (target) để tái sử dụng `PaymentFacade / PaymentGateway` mà không phải sửa logic nghiệp vụ.
+
+### Structure
+- **Adaptee**: JSON schema của PayOS (rawBody)
+- **Adapter**: `PayOSWebhookAdapter`
+- **Target**: `Map<String,String>` params (keys: orderCode, signature, rawBody, code, success, ...)
+- **Client**: `PaymentController.payOSWebhook(...)`
+
+### Code
+
+```java
+// (trích) PaymentController dùng adapter
+// PayOSWebhookAdapter.AdaptedWebhook adapted = payOSWebhookAdapter.adapt(rawBody, headers);
+// return paymentService.processPayOSCallback(adapted.getParams());
+```
+
+### Where used
+- Adapter: `src/main/java/com/example/cake/payment/service/payos/PayOSWebhookAdapter.java`
+- Client: `src/main/java/com/example/cake/payment/controller/PaymentController.java`
+
+---
+
+## 11) Decorator – PaymentGateway logging/timing
+
+### Intent
+Thêm tính năng logging/timing cho gateway mà không thay đổi logic của gateway thật (Open/Closed Principle).
+
+### Structure
+- **Component interface**: `PaymentGateway`
+- **Concrete component**: `PayOSGateway`
+- **Decorator**: `LoggingPaymentGatewayDecorator` (wrap 1 `PaymentGateway delegate`)
+- **Client/Builder**: `PaymentGatewayFactory` wrap gateways bằng decorator
+
+### Code
+Decorator skeleton:
+
+```java
+public class LoggingPaymentGatewayDecorator implements PaymentGateway {
+    private final PaymentGateway delegate;
+
+    @Override
+    public String createPaymentUrl(Payment payment, String orderInfo, String ipAddress) {
+        long start = System.nanoTime();
+        try {
+            String url = delegate.createPaymentUrl(payment, orderInfo, ipAddress);
+            log.info("createPaymentUrl elapsedMs={}", (System.nanoTime() - start) / 1_000_000);
+            return url;
+        } catch (Exception e) {
+            log.error("createPaymentUrl FAILED", e);
+            throw e;
+        }
+    }
+}
+```
+
+### Where used
+- Decorator: `src/main/java/com/example/cake/payment/service/gateway/LoggingPaymentGatewayDecorator.java`
+- Wrapped in: `src/main/java/com/example/cake/payment/service/gateway/PaymentGatewayFactory.java`
+
+---
+
+## 12) Chain of Responsibility – Payment creation validation
+
+### Intent
+Tách validation create payment thành các bước nhỏ (handlers) và nối chuỗi xử lý. Dễ mở rộng thêm rule mới mà không làm `PaymentFacade.createPayment()` phình to.
+
+### Structure
+- **Context**: `PaymentCreationContext` (dữ liệu đầu vào + kết quả)
+- **Handler interface**: `PaymentCreationHandler`
+- **Base handler**: `AbstractPaymentCreationHandler` (giữ next pointer)
+- **Concrete handlers**:
+  - `CourseExistenceAndEligibilityHandler`
+  - `BuildPaymentItemsAndTotalHandler`
+- **Chain builder**: `PaymentCreationValidationChain`
+- **Client**: `PaymentFacade.createPayment()` gọi chain trước khi tạo payment
+
+### Code
+
+```java
+// (trích) PaymentFacade gọi chain
+// paymentCreationValidationChain.validate(ctx);
+// if (!ctx.isValid()) return new ResponseMessage<>(false, ctx.getErrorMessage(), null);
+```
+
+---
+
+## 13) Payment (Strategy/Factory/Facade/Observer) – (tham khảo module payment)
 
 ### Intent
 Mở rộng dễ dàng nhiều cổng thanh toán (PayOS/VNPay/MoMo/…) và tách orchestration khỏi controller.
@@ -371,11 +497,9 @@ Mở rộng dễ dàng nhiều cổng thanh toán (PayOS/VNPay/MoMo/…) và tá
 
 ---
 
-## 10) Các pattern trong danh sách nhưng hiện CHƯA áp dụng (để ghi rõ trong báo cáo)
+## 14) Các pattern trong danh sách nhưng hiện CHƯA áp dụng (để ghi rõ trong báo cáo)
 - Singleton (tự viết): chưa (Spring beans thường đã singleton theo container)
 - Memento: chưa (khuyến nghị làm ở FE React – undo/redo form)
 - Prototype: chưa (khuyến nghị làm ở FE React – clone question/lesson block)
-- Decorator: chưa (khuyến nghị làm ở FE React – HOC/hooks guard)
 - Bridge: chưa
 - Visitor: chưa
-

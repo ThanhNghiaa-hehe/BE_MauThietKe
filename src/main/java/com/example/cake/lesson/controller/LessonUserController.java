@@ -3,17 +3,24 @@ package com.example.cake.lesson.controller;
 import com.example.cake.auth.model.User;
 import com.example.cake.auth.repository.UserRepository;
 import com.example.cake.lesson.dto.LessonCompleteResponse;
-import com.example.cake.lesson.dto.QuizResult;
 import com.example.cake.lesson.dto.QuizSubmission;
 import com.example.cake.lesson.model.Lesson;
 import com.example.cake.lesson.model.UserProgress;
 import com.example.cake.lesson.service.LessonService;
 import com.example.cake.lesson.service.ProgressService;
+import com.example.cake.quiz.dto.QuizSubmitRequest;
+import com.example.cake.quiz.dto.QuizResultResponse;
+import com.example.cake.quiz.model.Quiz;
+import com.example.cake.quiz.repository.QuizRepository;
+import com.example.cake.quiz.service.QuizService;
 import com.example.cake.response.ResponseMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
+import java.util.stream.Collectors;
 
 /**
  * User controller for accessing lessons and tracking progress
@@ -26,6 +33,8 @@ public class LessonUserController {
     private final LessonService lessonService;
     private final ProgressService progressService;
     private final UserRepository userRepository;
+    private final QuizService quizService;
+    private final QuizRepository quizRepository;
 
     /**
      * Helper method to get userId from Authentication
@@ -97,27 +106,63 @@ public class LessonUserController {
             @RequestParam Integer percent,
             Authentication authentication
     ) {
+        if (percent == null || percent < 0 || percent > 100) {
+            return ResponseEntity.badRequest()
+                    .body(new ResponseMessage<>(false, "percent phải nằm trong khoảng 0..100", null));
+        }
         String userId = getUserId(authentication);
         return ResponseEntity.ok(progressService.updateVideoProgress(userId, id, percent));
     }
 
     /**
-     * Nộp bài quiz
-     * @deprecated Use POST /api/quizzes/submit instead
-     * This endpoint redirects to new Quiz API
+     * Nộp bài quiz (LEGACY)
+     * @deprecated Use POST /api/quizzes/submit instead.
+     * Backward-compatible proxy mapping legacy payload to new QuizSubmitRequest.
      */
     @Deprecated
     @PostMapping("/quiz/submit")
-    public ResponseEntity<ResponseMessage<QuizResult>> submitQuiz(
+    public ResponseEntity<ResponseMessage<QuizResultResponse>> submitQuiz(
             @RequestBody QuizSubmission submission,
             Authentication authentication
     ) {
-        // Return error message directing to new API
-        return ResponseEntity.ok(
-            new ResponseMessage<>(false,
-                "This API is deprecated. Please use POST /api/quizzes/submit with new format. See documentation for details.",
-                null)
-        );
+        try {
+            String userId = getUserId(authentication);
+            if (submission == null || submission.getLessonId() == null || submission.getLessonId().isBlank()) {
+                return ResponseEntity.badRequest()
+                        .body(new ResponseMessage<>(false, "lessonId không được để trống", null));
+            }
+
+            Quiz quiz = quizRepository.findByLessonId(submission.getLessonId()).orElse(null);
+            if (quiz == null) {
+                return ResponseEntity.ok(new ResponseMessage<>(false, "Quiz not found for lesson", null));
+            }
+
+            QuizSubmitRequest mapped = QuizSubmitRequest.builder()
+                    .quizId(quiz.getId())
+                    .answers(submission.getAnswers() == null ? java.util.List.of() :
+                            submission.getAnswers().stream()
+                                    .map(a -> QuizSubmitRequest.AnswerRequest.builder()
+                                            .questionId(a.getQuestionId())
+                                            .selectedOptions(a.getSelectedOptions())
+                                            .build())
+                                    .collect(Collectors.toList())
+                    )
+                    .timeSpent(null)
+                    .startedAt(LocalDateTime.now())
+                    .build();
+
+            // Proxy to new quiz service
+            ResponseMessage<QuizResultResponse> result = quizService.submitQuiz(userId, mapped);
+
+            // Add a deprecation hint FE can display
+            if (result != null && result.isSuccess()) {
+                result.setMessage(result.getMessage() + " (via deprecated /api/lessons/quiz/submit - please migrate to /api/quizzes/submit)");
+            }
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body(new ResponseMessage<>(false, "Lỗi submit quiz legacy: " + e.getMessage(), null));
+        }
     }
 
     /**
@@ -145,5 +190,3 @@ public class LessonUserController {
         return ResponseEntity.ok(response);
     }
 }
-
-

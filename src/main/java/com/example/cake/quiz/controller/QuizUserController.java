@@ -8,6 +8,7 @@ import com.example.cake.quiz.model.Quiz;
 import com.example.cake.quiz.model.QuizAttempt;
 import com.example.cake.quiz.service.QuizService;
 import com.example.cake.response.ResponseMessage;
+import com.example.cake.lesson.service.ProgressService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -25,6 +26,7 @@ public class QuizUserController {
 
     private final QuizService quizService;
     private final UserRepository userRepository;
+    private final ProgressService progressService;
 
     /**
      * Helper method to get userId from Authentication
@@ -82,5 +84,33 @@ public class QuizUserController {
         String userId = getUserId(authentication);
         return ResponseEntity.ok(quizService.hasPassedQuiz(userId, quizId));
     }
-}
 
+    /**
+     * Get quiz by lessonId for student (without correct answers)
+     * User-safe endpoint to avoid calling admin APIs.
+     */
+    @GetMapping("/lesson/{lessonId}")
+    public ResponseEntity<ResponseMessage<Quiz>> getQuizByLessonId(
+            @PathVariable String lessonId,
+            Authentication authentication
+    ) {
+        if (authentication == null) {
+            return ResponseEntity.status(401)
+                    .body(new ResponseMessage<>(false, "Vui lòng đăng nhập", null));
+        }
+
+        // Enforce the same access rule as lesson API
+        String userId = getUserId(authentication);
+        ResponseMessage<Boolean> access = progressService.canAccessLesson(userId, lessonId);
+        if (!Boolean.TRUE.equals(access.getData())) {
+            return ResponseEntity.status(403)
+                    .body(new ResponseMessage<>(false, access.getMessage(), null));
+        }
+
+        ResponseMessage<Quiz> response = quizService.getQuizForStudentByLessonId(lessonId);
+        if (!response.isSuccess() && "QUIZ_NOT_FOUND_FOR_LESSON".equals(response.getMessage())) {
+            return ResponseEntity.ok(new ResponseMessage<>(true, "Lesson không có quiz", null));
+        }
+        return ResponseEntity.ok(response);
+    }
+}

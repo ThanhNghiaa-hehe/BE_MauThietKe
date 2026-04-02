@@ -37,14 +37,19 @@ app:
 # PayOS Payment Configuration
 # ============================================
 payos:
-  client-id: 20f87798-7fcc-4c38-9ad8-2db958f5e806
-  api-key: 4ec884f6-d69d-44ce-b69b-0277ffcd28cc
-  checksum-key: 945e5605eb1eb9be573fa0d1733aca3bbe9ebe834fa0993d52cc81455613a209
+  client-id: ${PAYOS_CLIENT_ID:20f87798-7fcc-4c38-9ad8-2db958f5e806}
+  api-key: ${PAYOS_API_KEY:4ec884f6-d69d-44ce-b69b-0277ffcd28cc}
+  checksum-key: ${PAYOS_CHECKSUM_KEY:945e5605eb1eb9be573fa0d1733aca3bbe9ebe834fa0993d52cc81455613a209}
 
   # Endpoints
-  api-base-url: https://api-merchant.payos.vn
+  api-base-url: ${PAYOS_API_BASE_URL:https://api-merchant.payos.vn}
 
-  # URLs you registered on PayOS dashboard (adjust to your FE url / public webhook url)
-  return-url: http://localhost:5174/payment/return
-  cancel-url: http://localhost:5174/payment/cancel
-  webhook-url: http://localhost:8080/api/payment/payos/webhook
+  # Frontend base URL for user redirect after PayOS return/cancel
+  frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+
+  # Return/cancel must point to BACKEND endpoints in Option B (BE will redirect to FE)
+  return-url: ${PAYOS_RETURN_URL:http://localhost:8080/api/payment/payos/return}
+  cancel-url: ${PAYOS_CANCEL_URL:http://localhost:8080/api/payment/payos/cancel}
+
+  # Webhook must be reachable by PayOS server; keep configurable per env
+  webhook-url: ${PAYOS_WEBHOOK_URL:http://localhost:8080/api/payment/payos/webhook}

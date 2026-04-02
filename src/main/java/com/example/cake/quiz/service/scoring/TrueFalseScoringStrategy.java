@@ -19,24 +19,13 @@ public class TrueFalseScoringStrategy extends AbstractOptionBasedScoringStrategy
 
     @Override
     public ScoredQuestion score(Quiz.Question question, List<String> selectedOptions) {
-        List<String> correct = correctAnswers(question);
-        List<String> selected = selectedOptions != null ? selectedOptions : List.of();
+        return scoreTemplate(question, selectedOptions);
+    }
 
-        boolean isCorrect = selected.size() == 1
+    @Override
+    protected boolean isCorrectSelection(Quiz.Question question, List<String> selected, List<String> correct) {
+        return selected.size() == 1
                 && correct.size() == 1
                 && selected.get(0).equals(correct.get(0));
-
-        int points = isCorrect ? safePoints(question) : 0;
-
-        return new ScoredQuestion(
-                points,
-                buildSavedAnswer(question, selected, isCorrect, points),
-                buildQuestionResult(question, selected, correct, isCorrect, points)
-        );
-    }
-
-    private int safePoints(Quiz.Question q) {
-        return q.getPoints() != null ? q.getPoints() : 0;
     }
 }
-

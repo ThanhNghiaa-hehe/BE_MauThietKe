@@ -9,9 +9,39 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Shared helper for option-based questions.
+ * Template Method: shared scoring algorithm for option-based questions.
  */
 public abstract class AbstractOptionBasedScoringStrategy implements QuestionScoringStrategy {
+
+    /**
+     * Template method: keep scoring flow stable across strategies.
+     */
+    protected final ScoredQuestion scoreTemplate(Quiz.Question question, List<String> selectedOptions) {
+        List<String> correct = correctAnswers(question);
+        List<String> selected = safeSelected(selectedOptions);
+
+        boolean isCorrect = isCorrectSelection(question, selected, correct);
+        int points = isCorrect ? safePoints(question) : 0;
+
+        return new ScoredQuestion(
+                points,
+                buildSavedAnswer(question, selected, isCorrect, points),
+                buildQuestionResult(question, selected, correct, isCorrect, points)
+        );
+    }
+
+    /**
+     * Hook method: each strategy defines correctness rule.
+     */
+    protected abstract boolean isCorrectSelection(Quiz.Question question, List<String> selected, List<String> correct);
+
+    protected int safePoints(Quiz.Question q) {
+        return q.getPoints() != null ? q.getPoints() : 0;
+    }
+
+    protected List<String> safeSelected(List<String> selected) {
+        return selected != null ? selected : List.of();
+    }
 
     protected List<String> correctAnswers(Quiz.Question question) {
         if (question.getOptions() == null) return new ArrayList<>();
@@ -47,4 +77,3 @@ public abstract class AbstractOptionBasedScoringStrategy implements QuestionScor
                 .build();
     }
 }
-

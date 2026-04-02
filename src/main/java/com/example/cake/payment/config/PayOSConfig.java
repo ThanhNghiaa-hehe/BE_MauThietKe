@@ -17,5 +17,7 @@ public class PayOSConfig {
     private String returnUrl;
     private String cancelUrl;
     private String webhookUrl;
-}
 
+    /** Base URL of frontend (e.g., http://localhost:5173) used for redirect after PayOS return/cancel */
+    private String frontendBaseUrl;
+}

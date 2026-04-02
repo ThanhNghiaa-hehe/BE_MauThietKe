@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -116,6 +117,29 @@ public class QuizService {
                 option.setIsCorrect(null); // Hide correct flag
             });
         });
+
+        return new ResponseMessage<>(true, "Success", quiz);
+    }
+
+    /**
+     * Get quiz for student by lessonId (hide correct answers).
+     */
+    public ResponseMessage<Quiz> getQuizForStudentByLessonId(String lessonId) {
+        Optional<Quiz> quizOpt = quizRepository.findByLessonId(lessonId);
+        if (quizOpt.isEmpty()) {
+            // Use a stable sentinel message so controller can convert to success=true,data=null if desired
+            return new ResponseMessage<>(false, "QUIZ_NOT_FOUND_FOR_LESSON", null);
+        }
+        Quiz quiz = quizOpt.get();
+
+        // Hide correct answers
+        if (quiz.getQuestions() != null) {
+            quiz.getQuestions().forEach(question -> {
+                if (question.getOptions() != null) {
+                    question.getOptions().forEach(option -> option.setIsCorrect(null));
+                }
+            });
+        }
 
         return new ResponseMessage<>(true, "Success", quiz);
     }

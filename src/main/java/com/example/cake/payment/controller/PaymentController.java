@@ -2,18 +2,24 @@ package com.example.cake.payment.controller;
 
 import com.example.cake.auth.model.User;
 import com.example.cake.auth.repository.UserRepository;
+import com.example.cake.payment.config.PayOSConfig;
 import com.example.cake.payment.model.Payment;
 import com.example.cake.payment.service.PaymentService;
+import com.example.cake.payment.service.payos.PayOSWebhookAdapter;
 import com.example.cake.response.ResponseMessage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -28,6 +34,8 @@ public class PaymentController {
 
     private final PaymentService paymentService;
     private final UserRepository userRepository;
+    private final PayOSConfig payOSConfig;
+    private final PayOSWebhookAdapter payOSWebhookAdapter;
 
     /**
      * Create PayOS payment - Direct course purchase
@@ -94,43 +102,15 @@ public class PaymentController {
             @RequestBody String rawBody,
             @RequestHeader Map<String, String> headers
     ) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode root = mapper.readTree(rawBody);
-
-            String signature = root.path("signature").asText(null);
-            boolean success = root.path("success").asBoolean(false);
-            String topCode = root.path("code").asText(null);
-
-            JsonNode data = root.path("data");
-            Long orderCode = data.path("orderCode").isMissingNode() ? null : data.path("orderCode").asLong();
-            Long amount = data.path("amount").isMissingNode() ? null : data.path("amount").asLong();
-            String dataCode = data.path("code").asText(null);
-            String reference = data.path("reference").asText(null);
-            String paymentLinkId = data.path("paymentLinkId").asText(null);
-
-            log.info("PayOS webhook received orderCode={} success={} code={} dataCode={} ref={} linkId={} headers={} ",
-                    orderCode, success, topCode, dataCode, reference, paymentLinkId, headers.keySet());
-
-            Map<String, String> params = new HashMap<>();
-            if (orderCode != null) params.put("orderCode", String.valueOf(orderCode));
-            if (amount != null) params.put("amount", String.valueOf(amount));
-            if (reference != null) params.put("reference", reference);
-            if (paymentLinkId != null) params.put("paymentLinkId", paymentLinkId);
-            if (signature != null) params.put("signature", signature);
-            params.put("rawBody", rawBody);
-
-            // Normalize status: successful if success==true OR code=="00" OR data.code=="00"
-            String normalizedCode = (dataCode != null) ? dataCode : topCode;
-            params.put("code", normalizedCode);
-            params.put("success", String.valueOf(success));
-
-            ResponseMessage<Map<String, Object>> response = paymentService.processPayOSCallback(params);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("PayOS webhook parse error: {}", e.getMessage(), e);
-            return ResponseEntity.ok(new ResponseMessage<>(false, "Webhook payload không hợp lệ", null));
+        PayOSWebhookAdapter.AdaptedWebhook adapted = payOSWebhookAdapter.adapt(rawBody, headers);
+        if (adapted.getParams() == null) {
+            return ResponseEntity.ok(new ResponseMessage<>(false,
+                    adapted.getErrorMessage() != null ? adapted.getErrorMessage() : "Webhook payload không hợp lệ",
+                    null));
         }
+
+        ResponseMessage<Map<String, Object>> response = paymentService.processPayOSCallback(adapted.getParams());
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -185,6 +165,78 @@ public class PaymentController {
 
         ResponseMessage<java.util.List<Payment>> response = paymentService.getUserSuccessfulPayments(user.getId());
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * PayOS browser return endpoint (Option B): PayOS redirects here, then BE redirects to FE.
+     * This endpoint is for UI only; official payment status is determined by webhook + DB.
+     */
+    @GetMapping("/payos/return")
+    public ResponseEntity<Void> payOSReturnRedirect(
+            @RequestParam Map<String, String> queryParams
+    ) {
+        String feBase = normalizeFrontendBaseUrl(payOSConfig.getFrontendBaseUrl());
+
+        // PayOS may provide orderCode/code/status fields depending on integration.
+        String orderCode = firstNonBlank(queryParams.get("orderCode"), queryParams.get("order_code"), queryParams.get("order"));
+        String code = firstNonBlank(queryParams.get("code"), queryParams.get("responseCode"));
+        String status = firstNonBlank(queryParams.get("status"), ("00".equals(code) ? "SUCCESS" : null));
+
+        String redirectUrl = feBase + "/payment/return"
+                + "?status=" + url(status != null ? status : "PENDING")
+                + "&code=" + url(code != null ? code : "")
+                + "&cancel=false"
+                + (orderCode != null ? "&orderCode=" + url(orderCode) : "");
+
+        log.info("[PayOS] return redirect -> {} (from query={})", redirectUrl, queryParams);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.LOCATION, redirectUrl);
+        return new ResponseEntity<>(headers, HttpStatus.FOUND);
+    }
+
+    /**
+     * PayOS browser cancel endpoint (Option B): PayOS redirects here, then BE redirects to FE.
+     */
+    @GetMapping("/payos/cancel")
+    public ResponseEntity<Void> payOSCancelRedirect(
+            @RequestParam Map<String, String> queryParams
+    ) {
+        String feBase = normalizeFrontendBaseUrl(payOSConfig.getFrontendBaseUrl());
+
+        String orderCode = firstNonBlank(queryParams.get("orderCode"), queryParams.get("order_code"), queryParams.get("order"));
+        String code = firstNonBlank(queryParams.get("code"), queryParams.get("responseCode"));
+
+        String redirectUrl = feBase + "/payment/cancel"
+                + "?status=" + url("CANCELLED")
+                + "&code=" + url(code != null ? code : "")
+                + "&cancel=true"
+                + (orderCode != null ? "&orderCode=" + url(orderCode) : "");
+
+        log.info("[PayOS] cancel redirect -> {} (from query={})", redirectUrl, queryParams);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.LOCATION, redirectUrl);
+        return new ResponseEntity<>(headers, HttpStatus.FOUND);
+    }
+
+    private static String normalizeFrontendBaseUrl(String feBase) {
+        if (feBase == null || feBase.isBlank()) return "http://localhost:5173";
+        // Remove trailing slash
+        if (feBase.endsWith("/")) return feBase.substring(0, feBase.length() - 1);
+        return feBase;
+    }
+
+    private static String url(String v) {
+        return URLEncoder.encode(v == null ? "" : v, StandardCharsets.UTF_8);
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) return null;
+        for (String v : values) {
+            if (v != null && !v.isBlank()) return v;
+        }
+        return null;
     }
 
     /**

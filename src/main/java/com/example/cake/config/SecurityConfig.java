@@ -36,9 +36,10 @@ public class SecurityConfig {
                                 "/api/auth/**",        // login/register
                                 "/api/courses/**",     // public course
                                 "/api/curriculum/**",  // xem curriculum (chapters + lessons)
-                                "/api/payment/payos/**", // PayOS webhook
-                                "/static/**",          // ảnh courses, avatars
-                                "/api/lessons/**"
+                                "/api/payment/payos/webhook", // PayOS webhook only
+                                "/api/payment/payos/return",
+                                "/api/payment/payos/cancel",
+                                "/static/**"           // ảnh courses, avatars
                         ).permitAll()
 
                         // admin
