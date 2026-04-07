@@ -28,16 +28,16 @@ public class QuizAttempt {
     private String lessonId;
     private String courseId;
 
-    private Integer attemptNumber;      // 1, 2, 3... (which attempt)
-    private Integer score;              // Points earned
-    private Integer totalScore;         // Total possible points
-    private Double percentage;          // Score percentage
+    private Integer attemptNumber;
+    private Integer score;
+    private Integer totalScore;
+    private Double percentage;
 
-    private Boolean passed;             // Pass or fail
+    private Boolean passed;
 
-    private List<Answer> answers;       // User's answers
+    private List<Answer> answers;
 
-    private Integer timeSpent;          // Time spent in seconds
+    private Integer timeSpent;
     private LocalDateTime startedAt;
     private LocalDateTime completedAt;
 

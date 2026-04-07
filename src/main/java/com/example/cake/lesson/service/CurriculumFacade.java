@@ -16,13 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Facade pattern: centralizes curriculum aggregation logic.
- *
- * Supports:
- * - PUBLIC curriculum: chapters/lessons overview (no auth)
- * - USER curriculum: includes unlock + progress info (requires userId)
- */
+
 @Component
 @RequiredArgsConstructor
 public class CurriculumFacade {
@@ -31,12 +25,12 @@ public class CurriculumFacade {
     private final LessonService lessonService;
     private final ProgressService progressService;
 
-    // For efficient aggregation in user-view
+
     private final ChapterRepository chapterRepository;
     private final LessonRepository lessonRepository;
     private final UserProgressRepository userProgressRepository;
 
-    // ===== PUBLIC (keep existing responses stable) =====
+
 
     public ResponseMessage<List<Chapter>> getCourseChaptersPublic(String courseId) {
         return chapterService.getChaptersByCourse(courseId);
@@ -54,7 +48,7 @@ public class CurriculumFacade {
         return lessonService.getLessonsByCourse(courseId);
     }
 
-    // ===== USER VIEW (new endpoint; doesn't break public endpoints) =====
+
 
     public ResponseMessage<CurriculumUserViewDTO> getCurriculumForUser(String userId, String courseId) {
         // Load progress (optional, user may not be enrolled)
@@ -74,7 +68,7 @@ public class CurriculumFacade {
                     .build());
         }
 
-        // Build lesson views grouped by chapter
+
         for (Lesson l : lessons) {
             CurriculumUserViewDTO.LessonView lessonView = toLessonView(userId, l, progress);
             CurriculumUserViewDTO.ChapterView ch = chapterViewsById.get(l.getChapterId());
