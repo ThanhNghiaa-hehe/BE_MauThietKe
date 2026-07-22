@@ -28,4 +28,9 @@ public interface PaymentRepository extends MongoRepository<Payment, String> {
      * Find payment by provider order code (PayOS orderCode).
      */
     java.util.Optional<Payment> findByProviderOrderCode(Long providerOrderCode);
+
+    /**
+     * Delete all payments of a user
+     */
+    void deleteByUserId(String userId);
 }

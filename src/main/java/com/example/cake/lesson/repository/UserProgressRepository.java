@@ -34,5 +34,10 @@ public interface UserProgressRepository extends MongoRepository<UserProgress, St
      * Xóa tiến độ của user trong một khóa học
      */
     void deleteByUserIdAndCourseId(String userId, String courseId);
+
+    /**
+     * Xóa tất cả tiến độ học tập của user
+     */
+    void deleteByUserId(String userId);
 }
 

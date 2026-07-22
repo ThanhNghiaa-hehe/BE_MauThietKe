@@ -23,6 +23,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.example.cake.payment.repository.PaymentRepository;
+import com.example.cake.payment.service.event.PaymentSucceededEvent;
+import org.springframework.context.ApplicationEventPublisher;
+
 /**
  * Payment Controller - PayOS Integration
  */
@@ -36,6 +40,8 @@ public class PaymentController {
     private final UserRepository userRepository;
     private final PayOSConfig payOSConfig;
     private final PayOSWebhookAdapter payOSWebhookAdapter;
+    private final PaymentRepository paymentRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Create PayOS payment - Direct course purchase
@@ -77,16 +83,18 @@ public class PaymentController {
         }
 
         String orderInfo = (String) request.getOrDefault("orderInfo", "Thanh toan khoa hoc");
+        String couponCode = (String) request.get("couponCode");
         String ipAddress = getClientIp(httpRequest);
 
-        log.info("Create payment request from user: {} (email: {}), {} courses, IP: {}",
-                userId, email, courseIds.size(), ipAddress);
+        log.info("Create payment request from user: {} (email: {}), {} courses, IP: {}, coupon: {}",
+                userId, email, courseIds.size(), ipAddress, couponCode);
 
         ResponseMessage<Map<String, String>> response = paymentService.createPayOSPayment(
                 userId,
                 courseIds,
                 orderInfo,
-                ipAddress
+                ipAddress,
+                couponCode
         );
 
         return ResponseEntity.ok(response);
@@ -169,7 +177,7 @@ public class PaymentController {
 
     /**
      * PayOS browser return endpoint (Option B): PayOS redirects here, then BE redirects to FE.
-     * This endpoint is for UI only; official payment status is determined by webhook + DB.
+     * This endpoint verifies return status and updates payment DB status + triggers receipt email immediately.
      */
     @GetMapping("/payos/return")
     public ResponseEntity<Void> payOSReturnRedirect(
@@ -177,16 +185,46 @@ public class PaymentController {
     ) {
         String feBase = normalizeFrontendBaseUrl(payOSConfig.getFrontendBaseUrl());
 
-        // PayOS may provide orderCode/code/status fields depending on integration.
-        String orderCode = firstNonBlank(queryParams.get("orderCode"), queryParams.get("order_code"), queryParams.get("order"));
+        String orderCodeStr = firstNonBlank(queryParams.get("orderCode"), queryParams.get("order_code"), queryParams.get("order"));
         String code = firstNonBlank(queryParams.get("code"), queryParams.get("responseCode"));
         String status = firstNonBlank(queryParams.get("status"), ("00".equals(code) ? "SUCCESS" : null));
+        boolean isSuccess = "00".equals(code) || "SUCCESS".equalsIgnoreCase(status) || "PAID".equalsIgnoreCase(status);
+
+        if (isSuccess && orderCodeStr != null) {
+            try {
+                Long orderCode = Long.valueOf(orderCodeStr);
+                Payment payment = paymentRepository.findByProviderOrderCode(orderCode).orElse(null);
+                if (payment != null && payment.getStatus() != Payment.PaymentStatus.SUCCESS) {
+                    payment.setStatus(Payment.PaymentStatus.SUCCESS);
+                    payment.setPaidAt(java.time.LocalDateTime.now());
+                    payment.setProviderResponseCode(code);
+                    paymentRepository.save(payment);
+
+                    java.util.List<String> courseIds = payment.getCourses() == null
+                            ? java.util.List.of()
+                            : payment.getCourses().stream().map(Payment.PaymentCourseItem::getCourseId).toList();
+
+                    eventPublisher.publishEvent(PaymentSucceededEvent.builder()
+                            .paymentId(payment.getId())
+                            .userId(payment.getUserId())
+                            .courseIds(courseIds)
+                            .amount(payment.getAmount())
+                            .paidAt(payment.getPaidAt())
+                            .build());
+
+                    log.info("🎉 [PayOS Return] Processed payment success & triggered receipt email for orderCode={} paymentId={}",
+                            orderCode, payment.getId());
+                }
+            } catch (Exception e) {
+                log.error("❌ [PayOS Return] Error updating payment status on return: {}", e.getMessage(), e);
+            }
+        }
 
         String redirectUrl = feBase + "/payment/return"
-                + "?status=" + url(status != null ? status : "PENDING")
+                + "?status=" + url(isSuccess ? "SUCCESS" : (status != null ? status : "PENDING"))
                 + "&code=" + url(code != null ? code : "")
                 + "&cancel=false"
-                + (orderCode != null ? "&orderCode=" + url(orderCode) : "");
+                + (orderCodeStr != null ? "&orderCode=" + url(orderCodeStr) : "");
 
         log.info("[PayOS] return redirect -> {} (from query={})", redirectUrl, queryParams);
 
@@ -204,14 +242,28 @@ public class PaymentController {
     ) {
         String feBase = normalizeFrontendBaseUrl(payOSConfig.getFrontendBaseUrl());
 
-        String orderCode = firstNonBlank(queryParams.get("orderCode"), queryParams.get("order_code"), queryParams.get("order"));
+        String orderCodeStr = firstNonBlank(queryParams.get("orderCode"), queryParams.get("order_code"), queryParams.get("order"));
         String code = firstNonBlank(queryParams.get("code"), queryParams.get("responseCode"));
+
+        if (orderCodeStr != null) {
+            try {
+                Long orderCode = Long.valueOf(orderCodeStr);
+                Payment payment = paymentRepository.findByProviderOrderCode(orderCode).orElse(null);
+                if (payment != null && payment.getStatus() == Payment.PaymentStatus.PENDING) {
+                    payment.setStatus(Payment.PaymentStatus.CANCELLED);
+                    paymentRepository.save(payment);
+                    log.info("⚠️ [PayOS Cancel] Payment marked CANCELLED for orderCode={}", orderCode);
+                }
+            } catch (Exception e) {
+                log.error("❌ [PayOS Cancel] Error updating payment status on cancel: {}", e.getMessage(), e);
+            }
+        }
 
         String redirectUrl = feBase + "/payment/cancel"
                 + "?status=" + url("CANCELLED")
                 + "&code=" + url(code != null ? code : "")
                 + "&cancel=true"
-                + (orderCode != null ? "&orderCode=" + url(orderCode) : "");
+                + (orderCodeStr != null ? "&orderCode=" + url(orderCodeStr) : "");
 
         log.info("[PayOS] cancel redirect -> {} (from query={})", redirectUrl, queryParams);
 

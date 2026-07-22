@@ -27,6 +27,11 @@ import java.util.Map;
 
 import java.util.*;
 
+import com.example.cake.lesson.repository.UserProgressRepository;
+import com.example.cake.payment.repository.InvoiceRepository;
+import com.example.cake.payment.repository.PaymentRepository;
+import com.example.cake.review.repository.ReviewRepository;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -37,6 +42,10 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final RedisService otpRedisService;
     private final EmailService emailService;
+    private final UserProgressRepository userProgressRepository;
+    private final PaymentRepository paymentRepository;
+    private final InvoiceRepository invoiceRepository;
+    private final ReviewRepository reviewRepository;
 
 
 
@@ -83,14 +92,21 @@ public class UserService {
 
         String otp = String.format("%06d", new Random().nextInt(999999));
         String token = UUID.randomUUID().toString();
-        String jsonData = String.format("""
-                {
-                  "email": "%s",
-                  "otp": "%s"
-                }
-                """, request.getEmail(), otp);
-        otpRedisService.saveOtp(token, jsonData, 5); // TTL 5 phút
-        emailService.sendOtpForgetPassWord(request.getEmail(), otp);
+        
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            com.fasterxml.jackson.databind.node.ObjectNode jsonNode = mapper.createObjectNode();
+            jsonNode.put("email", request.getEmail());
+            jsonNode.put("otp", otp);
+            String jsonData = mapper.writeValueAsString(jsonNode);
+
+            otpRedisService.saveOtp(token, jsonData, 5); // TTL 5 phút
+            emailService.sendOtpForgetPassWord(request.getEmail(), otp);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("⚠️ Send Forget Password OTP failed: " + e.getMessage());
+            return new ResponseMessage<>(false, "Gửi OTP khôi phục mật khẩu thất bại: " + e.getMessage(), null);
+        }
 
         Map<String, String> data = new HashMap<>();
         data.put("token", token);
@@ -165,8 +181,21 @@ public class UserService {
         Optional<User> userOptional = userRepository.findById(id);
 
         if (userOptional.isPresent()) {
+            User user = userOptional.get();
+
+            // Xóa tất cả các dữ liệu liên quan đến user (Cascade Delete)
+            try {
+                userProgressRepository.deleteByUserId(id);
+                paymentRepository.deleteByUserId(id);
+                invoiceRepository.deleteByUserId(id);
+                reviewRepository.deleteByUserId(id);
+                log.info("✅ Cascade deleted progress, payments, invoices, and reviews for userId={}", id);
+            } catch (Exception e) {
+                log.error("⚠️ Error cascading delete for userId={}: {}", id, e.getMessage());
+            }
+
             userRepository.deleteById(id);
-            return new ResponseMessage<>(true, "Xoá thành công user : " + userOptional.get().getFullname(), null);
+            return new ResponseMessage<>(true, "Xoá thành công user : " + user.getFullname() + " và toàn bộ dữ liệu liên quan!", null);
         } else {
             return new ResponseMessage<>(false, "Id user không tồn tại  : " + id, null);
         }

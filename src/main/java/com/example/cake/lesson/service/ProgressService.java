@@ -31,6 +31,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.example.cake.quiz.model.Quiz;
+import com.example.cake.quiz.repository.QuizRepository;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -41,6 +44,7 @@ public class ProgressService {
     private final ChapterRepository chapterRepository;
     private final CourseRepository courseRepository;
     private final QuizAttemptRepository quizAttemptRepository;
+    private final QuizRepository quizRepository;
 
     // State + Observer wiring
     private final ProgressStateResolver stateResolver;
@@ -743,32 +747,32 @@ public class ProgressService {
             // Đếm lessons đã hoàn thành trong chapter
             java.util.List<Lesson> lessonsInChapter = lessonRepository.findAllByChapterIdOrderByOrderAsc(chapter.getId());
             int completedCount = 0;
-            String finalQuizId = null;
-            Boolean quizPassed = null;
-            Integer quizScore = null;
-
             for (Lesson lesson : lessonsInChapter) {
                 if (progress.isLessonCompleted(lesson.getId())) {
                     completedCount++;
                 }
+            }
 
-                // Tìm quiz cuối chapter (lesson có hasQuiz = true và order lớn nhất)
-                if (Boolean.TRUE.equals(lesson.getHasQuiz())) {
-                    finalQuizId = lesson.getId();
+            // Tìm bài Quiz gắn với ChapterId này từ QuizRepository
+            String finalQuizId = null;
+            Boolean quizPassed = null;
+            Integer quizScore = null;
 
-                    // Lấy quiz progress
-                    UserProgress.LessonProgress lessonProgress = progress.getLessonsProgress() != null ?
-                        progress.getLessonsProgress().stream()
-                            .filter(lp -> lp.getLessonId().equals(lesson.getId()))
-                            .findFirst()
-                            .orElse(null)
-                        : null;
+            List<Quiz> chapterQuizzes = quizRepository.findByChapterId(chapter.getId());
+            if (chapterQuizzes != null && !chapterQuizzes.isEmpty()) {
+                Quiz chapterQuiz = chapterQuizzes.get(0);
+                finalQuizId = chapterQuiz.getId();
 
-                    if (lessonProgress != null) {
-                        quizPassed = lessonProgress.getQuizPassedAt() != null;
-                        quizScore = lessonProgress.getQuizScore();
-                    }
-                }
+                boolean passed = quizAttemptRepository.existsByUserIdAndQuizIdAndPassedTrue(
+                    progress.getUserId(),
+                    chapterQuiz.getId()
+                );
+                quizPassed = passed;
+
+                quizAttemptRepository.findFirstByUserIdAndQuizIdOrderByAttemptNumberDesc(progress.getUserId(), chapterQuiz.getId())
+                    .ifPresent(attempt -> {
+                        // score is integer %
+                    });
             }
 
             // Check chapter unlock
@@ -808,28 +812,28 @@ public class ProgressService {
             return true; // Không có chapter trước → unlock
         }
 
-        // Tìm quiz cuối chapter trước
+        // 1. Phải hoàn thành TẤT CẢ các bài học của Chapter trước
         java.util.List<Lesson> lessonsInPreviousChapter = lessonRepository.findAllByChapterIdOrderByOrderAsc(previousChapter.getId());
-        Lesson finalQuiz = lessonsInPreviousChapter.stream()
-            .filter(l -> Boolean.TRUE.equals(l.getHasQuiz()))
-            .reduce((first, second) -> second) // Lấy quiz cuối cùng
-            .orElse(null);
+        long completedInPrevious = lessonsInPreviousChapter.stream()
+            .filter(l -> progress.isLessonCompleted(l.getId()))
+            .count();
 
-        if (finalQuiz != null && finalQuiz.getQuizId() != null) {
-            // Cần PASS quiz cuối chapter trước (không chỉ complete)
-            // Check trong QuizAttempt xem đã pass chưa
-            boolean quizPassed = quizAttemptRepository.existsByUserIdAndQuizIdAndPassedTrue(
-                progress.getUserId(),
-                finalQuiz.getQuizId()
-            );
-            return quizPassed;
-        } else {
-            // Không có quiz → Chỉ cần complete tất cả lessons
-            long completedInPrevious = lessonsInPreviousChapter.stream()
-                .filter(l -> progress.isLessonCompleted(l.getId()))
-                .count();
-            return completedInPrevious == lessonsInPreviousChapter.size();
+        if (completedInPrevious < lessonsInPreviousChapter.size()) {
+            return false;
         }
+
+        // 2. Nếu Chapter trước có bài Quiz → Phải PASS Bài Quiz đó
+        List<Quiz> prevChapterQuizzes = quizRepository.findByChapterId(previousChapter.getId());
+        if (prevChapterQuizzes != null && !prevChapterQuizzes.isEmpty()) {
+            Quiz prevQuiz = prevChapterQuizzes.get(0);
+            return quizAttemptRepository.existsByUserIdAndQuizIdAndPassedTrue(
+                progress.getUserId(),
+                prevQuiz.getId()
+            );
+        }
+
+        // Nếu Chapter trước không có Quiz → Đã học hết bài → Mở khóa
+        return true;
     }
 }
 

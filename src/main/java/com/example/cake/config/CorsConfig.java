@@ -5,22 +5,19 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+/**
+ * CORS config via MVC - disabled in favor of Spring Security CORS config.
+ * Spring Security's corsConfigurationSource() in SecurityConfig takes precedence.
+ */
 @Configuration
 public class CorsConfig {
 
+    // Disabled: CORS is now configured in SecurityConfig.corsConfigurationSource()
+    // Having two CORS sources can cause conflicts, especially with credentials=true
+    /*
     @Bean
     public WebMvcConfigurer corsConfigurer() {
-        return new WebMvcConfigurer() {
-            @Override
-            public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/**") // cho phép mọi path
-                        .allowedOriginPatterns("http://localhost:5173") // KHÔNG dùng allowedOrigins nữa
-                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS") // cho phép các method
-                        .allowedHeaders("*") // cho phép mọi header (gồm Authorization)
-                        .exposedHeaders("Authorization") // cho phép FE đọc được header này nếu cần
-                        .allowCredentials(true) // để gửi cookie hoặc header Authorization
-                        .maxAge(3600); // cache preflight trong 1h
-            }
-        };
+        ...
     }
+    */
 }

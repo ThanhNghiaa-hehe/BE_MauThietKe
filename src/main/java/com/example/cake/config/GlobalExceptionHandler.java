@@ -22,4 +22,13 @@ public class GlobalExceptionHandler {
                 new ResponseMessage<>(false, "Dữ liệu không hợp lệ!", errors)
         );
     }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<?> handleGeneralException(Exception ex) {
+        System.err.println("❌ Unhandled exception caught: " + ex.getMessage());
+        ex.printStackTrace();
+        return ResponseEntity.internalServerError().body(
+                new ResponseMessage<>(false, "Lỗi hệ thống: " + ex.getMessage(), null)
+        );
+    }
 }

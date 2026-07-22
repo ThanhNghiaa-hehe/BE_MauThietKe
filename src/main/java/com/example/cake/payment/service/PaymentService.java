@@ -33,9 +33,10 @@ public class PaymentService {
             String userId,
             List<String> courseIds,
             String orderInfo,
-            String ipAddress
+            String ipAddress,
+            String couponCode
     ) {
-        return paymentFacade.createPayment(userId, courseIds, orderInfo, ipAddress, Payment.PaymentMethod.PAYOS);
+        return paymentFacade.createPayment(userId, courseIds, orderInfo, ipAddress, Payment.PaymentMethod.PAYOS, couponCode);
     }
 
     /**

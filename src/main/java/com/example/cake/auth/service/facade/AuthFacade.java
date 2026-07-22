@@ -40,8 +40,8 @@ public class AuthFacade {
         return authService.register(request);
     }
 
-    public ResponseMessage<com.example.cake.auth.model.User> verifyOtp(VerifyOtpRequest request) {
-        return authService.verifyOtp(request);
+    public ResponseMessage<Map<String, Object>> verifyOtp(VerifyOtpRequest request, HttpServletResponse response) {
+        return authService.verifyOtp(request, response);
     }
 
     public ResponseMessage<Map<String, String>> resendOtp(String token) {

@@ -15,6 +15,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import java.time.LocalDate;
@@ -23,6 +24,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -85,28 +87,6 @@ public class AuthService {
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             return new ResponseMessage<>(false, "Email đã tồn tại!", null);
         }
-        // tạo OTP
-        String otp = String.format("%06d", new java.util.Random().nextInt(999999));
-
-        // Tạo token
-        String token = UUID.randomUUID().toString();
-
-        //Tạo JSON chứa thông tin user + otp
-        String jsonData = String.format("""
-        {
-          "email": "%s",
-          "password": "%s",
-          "fullname": "%s",
-          "phoneNumber": "%s",
-          "otp": "%s"
-        }
-        
-        """, request.getEmail(),
-                passwordEncoder.encode(request.getPassword()),
-                request.getFullname(),
-                request.getPhoneNumber(),
-                otp
-        );
 
         // Validate email format and existence (with fallback)
         try {
@@ -114,18 +94,42 @@ public class AuthService {
                 return new ResponseMessage<>(false, "Email không tồn tại hoặc không hợp lệ!", null);
             }
         } catch (Exception e) {
-            // Fallback: if email validation API fails, continue with basic validation
             System.err.println("⚠️ Email validation service failed: " + e.getMessage());
         }
 
-        emailService.sendOtpEmail(request.getEmail(), otp);
-        otpRedisService.saveOtp(token, jsonData, 5);
+        // tạo OTP
+        String otp = String.format("%06d", new java.util.Random().nextInt(999999));
+        // Tạo token
+        String token = UUID.randomUUID().toString();
+
+        String jsonData;
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            com.fasterxml.jackson.databind.node.ObjectNode jsonNode = mapper.createObjectNode();
+            jsonNode.put("email", request.getEmail());
+            jsonNode.put("password", passwordEncoder.encode(request.getPassword()));
+            jsonNode.put("fullname", request.getFullname());
+            jsonNode.put("phoneNumber", request.getPhoneNumber());
+            jsonNode.put("otp", otp);
+            jsonData = mapper.writeValueAsString(jsonNode);
+        } catch (Exception e) {
+            return new ResponseMessage<>(false, "Lỗi tạo dữ liệu đăng ký!", null);
+        }
+
+        try {
+            emailService.sendOtpEmail(request.getEmail(), otp);
+            otpRedisService.saveOtp(token, jsonData, 5);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("⚠️ Send OTP or Redis save failed: " + e.getMessage());
+            return new ResponseMessage<>(false, "Gửi OTP thất bại! Chi tiết: " + e.getMessage(), null);
+        }
 
         Map<String, String> data = new HashMap<>();
         data.put("token", token);
         data.put("email", request.getEmail());
         data.put("message", "OTP đã được gửi đến email. Vui lòng kiểm tra hộp thư (bao gồm cả spam).");
-        return new ResponseMessage<>(true, "OTP đã gửi về email! Hiệu lực 5 phút.",data);
+        return new ResponseMessage<>(true, "OTP đã gửi về email! Hiệu lực 5 phút.", data);
     }
 
 
@@ -239,31 +243,22 @@ public class AuthService {
 
         try {
             ObjectMapper mapper = new ObjectMapper();
-            JsonNode node = mapper.readTree(json);
+            com.fasterxml.jackson.databind.node.ObjectNode node = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(json);
             String email = node.get("email").asText();
 
             // Tạo OTP mới
             String newOtp = String.format("%06d", new java.util.Random().nextInt(999999));
-
-            // Cập nhật OTP mới vào JSON
-            String updatedJson = String.format("""
-            {
-              "email": "%s",
-              "password": "%s",
-              "fullname": "%s",
-              "phoneNumber": "%s",
-              "otp": "%s"
-            }
-            """, node.get("email").asText(),
-                    node.get("password").asText(),
-                    node.get("fullname").asText(),
-                    node.get("phoneNumber").asText(),
-                    newOtp
-            );
+            node.put("otp", newOtp);
+            String updatedJson = mapper.writeValueAsString(node);
 
             // Gửi OTP mới
-            emailService.sendOtpEmail(email, newOtp);
-            otpRedisService.saveOtp(token, updatedJson, 5);
+            try {
+                emailService.sendOtpEmail(email, newOtp);
+                otpRedisService.saveOtp(token, updatedJson, 5);
+            } catch (Exception ex) {
+                System.err.println("⚠️ Resend OTP failed: " + ex.getMessage());
+                return new ResponseMessage<>(false, "Gửi lại OTP thất bại: " + ex.getMessage(), null);
+            }
 
             Map<String, String> data = new HashMap<>();
             data.put("token", token);
@@ -276,8 +271,8 @@ public class AuthService {
         }
     }
 
-    // gửi mã otp xác nhận đăng ký tài khoản
-    public ResponseMessage<User> verifyOtp(VerifyOtpRequest request) {
+    // gửi mã otp xác nhận đăng ký tài khoản & tự động đăng nhập
+    public ResponseMessage<Map<String, Object>> verifyOtp(VerifyOtpRequest request, HttpServletResponse response) {
         String json = otpRedisService.getOtp(request.getToken());
 
         if (json == null) {
@@ -296,28 +291,58 @@ public class AuthService {
 
             String email = node.get("email").asText();
 
-            // Kiểm tra email đã tồn tại chưa (trong trường hợp đã verify rồi)
-            if (userRepository.findByEmail(email).isPresent()) {
-                return new ResponseMessage<>(false, "Email đã được đăng ký! Vui lòng đăng nhập.", null);
+            // Kiểm tra email đã tồn tại chưa (nếu đã verify rồi → tự động lấy user đăng nhập)
+            Optional<User> existingUserOpt = userRepository.findByEmail(email);
+            User user;
+            if (existingUserOpt.isPresent()) {
+                user = existingUserOpt.get();
+                log.info("[AuthService] User already exists for email={}, logging in directly", email);
+            } else {
+                // Tạo user từ dữ liệu trong JSON
+                user = User.builder()
+                        .email(email)
+                        .password(node.get("password").asText())
+                        .fullname(node.get("fullname").asText())
+                        .phoneNumber(node.get("phoneNumber").asText())
+                        .role("USER")
+                        .active(true)
+                        .createdAt(LocalDate.now())
+                        .authProvider(AutheProvider.LOCAL)
+                        .build();
+
+                user = userRepository.save(user);
+                otpRedisService.deleteOtp(request.getToken());
             }
 
-            // Tạo user từ dữ liệu trong JSON
-            User user = User.builder()
-                    .email(email)
-                    .password(node.get("password").asText())
-                    .fullname(node.get("fullname").asText())
-                    .phoneNumber(node.get("phoneNumber").asText())
-                    .role("USER")
-                    .active(true)
-                    .createdAt(LocalDate.now())
-                    .authProvider(AutheProvider.LOCAL)
-                    .build();
+            // Tự động đăng nhập
+            UserPrincipal userPrincipal = new UserPrincipal(
+                    user.getId(),
+                    user.getEmail(),
+                    user.getPassword(),
+                    user.getRole(),
+                    user.isActive()
+            );
 
-            User saved = userRepository.save(user);
-            otpRedisService.deleteOtp(request.getToken());
+            String accessToken = jwtService.generateAccessToken(userPrincipal);
+            String refreshToken = UUID.randomUUID().toString();
+            otpRedisService.saveRefreshToken(user.getEmail(), refreshToken, 10080); // 7 ngày
 
-            return new ResponseMessage<>(true, "Xác minh OTP thành công! Tài khoản đã được tạo.", saved);
+            if (response != null) {
+                Cookie cookie = new Cookie("refreshToken", refreshToken);
+                cookie.setHttpOnly(true);
+                cookie.setSecure(false);
+                cookie.setPath("/");
+                cookie.setMaxAge(7 * 24 * 60 * 60);
+                response.addCookie(cookie);
+            }
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("accessToken", accessToken);
+            data.put("user", user);
+
+            return new ResponseMessage<>(true, "Xác minh OTP và đăng nhập thành công!", data);
         } catch (Exception e) {
+            e.printStackTrace();
             return new ResponseMessage<>(false, "Lỗi xử lý dữ liệu OTP!", null);
         }
     }

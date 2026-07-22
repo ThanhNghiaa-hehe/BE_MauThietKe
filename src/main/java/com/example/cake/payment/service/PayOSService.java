@@ -35,22 +35,23 @@ public class PayOSService {
      */
     public Map<String, Object> createPaymentLink(long orderCode, long amount, String description) {
         String url = payOSConfig.getApiBaseUrl() + "/v2/payment-requests";
+        String safeDescription = sanitizeDescription(description);
 
         JSONObject body = new JSONObject();
         body.put("orderCode", orderCode);
         body.put("amount", amount);
-        body.put("description", description);
+        body.put("description", safeDescription);
         body.put("returnUrl", payOSConfig.getReturnUrl());
         body.put("cancelUrl", payOSConfig.getCancelUrl());
 
-        String canonicalString = buildCreateLinkCanonicalString(orderCode, amount, description,
+        String canonicalString = buildCreateLinkCanonicalString(orderCode, amount, safeDescription,
                 payOSConfig.getReturnUrl(), payOSConfig.getCancelUrl());
 
         String signature = hmacSHA256(payOSConfig.getChecksumKey(), canonicalString);
         body.put("signature", signature);
 
         log.info("[PayOS] createPaymentLink: returnUrl={} cancelUrl={} orderCode={} amount={} desc={}",
-                payOSConfig.getReturnUrl(), payOSConfig.getCancelUrl(), orderCode, amount, description);
+                payOSConfig.getReturnUrl(), payOSConfig.getCancelUrl(), orderCode, amount, safeDescription);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -121,6 +122,27 @@ public class PayOSService {
             log.warn("[PayOS] webhook signature mismatch. received={} calculated={}", signature, calculated);
         }
         return ok;
+    }
+
+    private String sanitizeDescription(String desc) {
+        if (desc == null || desc.isBlank()) {
+            return "Thanh toan khoa hoc";
+        }
+        String normalized = java.text.Normalizer.normalize(desc, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
+                .replaceAll("đ", "d")
+                .replaceAll("Đ", "D")
+                .replaceAll("[^a-zA-Z0-9\\s]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+
+        if (normalized.length() > 25) {
+            normalized = normalized.substring(0, 25).trim();
+        }
+        if (normalized.isBlank()) {
+            return "Thanh toan khoa hoc";
+        }
+        return normalized;
     }
 
     private String hmacSHA256(String key, String data) {

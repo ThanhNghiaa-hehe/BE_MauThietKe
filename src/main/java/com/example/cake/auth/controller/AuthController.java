@@ -45,10 +45,12 @@ public class AuthController {
         return ResponseEntity.ok(authFacade.register(registerRequest));
     }
 
-    //Gửi mã OTP tới email để confirm
+    //Gửi mã OTP tới email để confirm & tự động đăng nhập
     @PostMapping("/verify-otp")
-    public ResponseEntity<ResponseMessage<User>> verifyOtp(@RequestBody VerifyOtpRequest request) {
-        return ResponseEntity.ok(authFacade.verifyOtp(request));
+    public ResponseEntity<ResponseMessage<Map<String, Object>>> verifyOtp(
+            @RequestBody VerifyOtpRequest request,
+            HttpServletResponse response) {
+        return ResponseEntity.ok(authFacade.verifyOtp(request, response));
     }
 
     @PostMapping("/forget-password")

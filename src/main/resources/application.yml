@@ -11,13 +11,16 @@ spring:
     host: smtp.gmail.com
     port: 587
     username: seanpaul1402@gmail.com
-    password: "bsuu joea zjdl koqc"
+    password: "sfzu mcfd qwdm gtcb"
     properties:
       mail:
         smtp:
           auth: true
           starttls:
             enable: true
+            required: true
+          ssl:
+            trust: smtp.gmail.com
 
   web:
     resources:
@@ -25,7 +28,7 @@ spring:
 
 mailboxlayer:
   api:
-    key: 19dacce41e42ff30bc496ec3164e1cb0
+    key: deff4bf40420625187bad6720d63aee3
 
 jwt:
   secret: shapio-super-secret-key-abcxyz1234567890

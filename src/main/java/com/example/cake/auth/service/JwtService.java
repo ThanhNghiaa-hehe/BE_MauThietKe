@@ -15,7 +15,7 @@ import java.util.Date;
 @Service
 public class JwtService {
 
-    private static final long ACCESS_TOKEN_EXPIRATION = 15 * 60 * 1000; // 15 phút
+    private static final long ACCESS_TOKEN_EXPIRATION = 24 * 60 * 60 * 1000L; // 24 giờ
 
     @Value("${jwt.secret}")
     private String secretKey;
