@@ -7,11 +7,7 @@ spring:
       uri: mongodb+srv://thanhnghiat42_db_user:yqpvwPOczWuExr0J@coursedb.oind0z4.mongodb.net/?appName=courseDb
       database: courseDb
     redis:
-      host: ${SPRING_REDIS_HOST:localhost}
-      port: ${SPRING_REDIS_PORT:6379}
-      password: ${SPRING_REDIS_PASSWORD:}
-      ssl:
-        enabled: ${SPRING_REDIS_SSL:false}
+      url: ${SPRING_REDIS_URL:redis://localhost:6379}
 
   mail:
     host: smtp.gmail.com
