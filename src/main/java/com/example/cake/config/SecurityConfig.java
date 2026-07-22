@@ -17,8 +17,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.core.Ordered;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
 
 @Configuration
 @EnableWebSecurity
@@ -83,10 +81,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.addAllowedOriginPattern("http://localhost:5173");
-        configuration.addAllowedOriginPattern("http://127.0.0.1:5173");
-        configuration.addAllowedOriginPattern("http://localhost:3000");
-        configuration.addAllowedOriginPattern("http://127.0.0.1:3000");
+        // Cho phép tất cả tên miền (gồm Vercel, localhost, mobile, ...) gọi API
+        configuration.addAllowedOriginPattern("*");
         configuration.addAllowedMethod("GET");
         configuration.addAllowedMethod("POST");
         configuration.addAllowedMethod("PUT");
