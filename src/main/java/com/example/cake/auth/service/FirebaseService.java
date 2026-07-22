@@ -60,9 +60,7 @@ public class FirebaseService {
 
     public FirebaseToken verifyToken(String idToken) throws FirebaseAuthException {
         if (FirebaseApp.getApps().isEmpty()) {
-            throw new FirebaseAuthException(
-                    new com.google.firebase.FirebaseException("Firebase App chưa được cấu hình key dịch vụ trên server cloud.")
-            );
+            throw new IllegalStateException("Firebase App chưa được cấu hình key dịch vụ trên server cloud.");
         }
         return FirebaseAuth.getInstance().verifyIdToken(idToken);
     }
