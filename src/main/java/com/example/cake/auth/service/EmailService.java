@@ -1,10 +1,12 @@
 package com.example.cake.auth.service;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +21,7 @@ public class EmailService {
 
     @Value("${spring.mail.username:seanpaul1402@gmail.com}")
     private String fromEmail;
+
 
     private String getSenderEmail() {
         return (fromEmail != null && !fromEmail.isBlank()) ? fromEmail : "seanpaul1402@gmail.com";
