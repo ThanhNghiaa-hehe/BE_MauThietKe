@@ -10,10 +10,10 @@ spring:
       url: ${SPRING_REDIS_URL:redis://localhost:6379}
 
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: seanpaul1402@gmail.com
-    password: "sfzu mcfd qwdm gtcb"
+    host: ${SPRING_MAIL_HOST:smtp.gmail.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:seanpaul1402@gmail.com}
+    password: ${SPRING_MAIL_PASSWORD:sfzu mcfd qwdm gtcb}
     properties:
       mail:
         smtp:

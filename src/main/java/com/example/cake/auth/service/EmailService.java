@@ -1,10 +1,11 @@
 package com.example.cake.auth.service;
 
+import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.CompletableFuture;
@@ -26,12 +27,14 @@ public class EmailService {
     public void sendOtpEmail(String to, String otp) {
         CompletableFuture.runAsync(() -> {
             try {
-                SimpleMailMessage message = new SimpleMailMessage();
-                message.setFrom(getSenderEmail());
-                message.setTo(to);
-                message.setSubject("Mã OTP xác minh - CodeLearn");
-                message.setText("Mã OTP của bạn là: " + otp + "\nHiệu lực trong 5 phút.");
-                mailSender.send(message);
+                MimeMessage mimeMessage = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, false, "UTF-8");
+                helper.setFrom(getSenderEmail(), "CodeLearn");
+                helper.setTo(to);
+                helper.setSubject("Mã OTP xác minh - CodeLearn");
+                helper.setText("Mã OTP của bạn là: " + otp + "\nHiệu lực trong 5 phút.");
+                
+                mailSender.send(mimeMessage);
                 log.info("✅ [EmailService] OTP email sent successfully to {} from {}", to, getSenderEmail());
             } catch (Exception e) {
                 log.error("❌ [EmailService] Failed to send OTP email to {}: {}", to, e.getMessage(), e);
@@ -42,12 +45,14 @@ public class EmailService {
     public void sendOtpForgetPassWord(String to, String otp) {
         CompletableFuture.runAsync(() -> {
             try {
-                SimpleMailMessage message = new SimpleMailMessage();
-                message.setFrom(getSenderEmail());
-                message.setTo(to);
-                message.setSubject("Mã OTP Khôi phục mật khẩu - CodeLearn");
-                message.setText("Mã OTP của bạn là: " + otp + "\nHiệu lực trong 5 phút.");
-                mailSender.send(message);
+                MimeMessage mimeMessage = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, false, "UTF-8");
+                helper.setFrom(getSenderEmail(), "CodeLearn");
+                helper.setTo(to);
+                helper.setSubject("Mã OTP Khôi phục mật khẩu - CodeLearn");
+                helper.setText("Mã OTP của bạn là: " + otp + "\nHiệu lực trong 5 phút.");
+                
+                mailSender.send(mimeMessage);
                 log.info("✅ [EmailService] Forget password OTP sent successfully to {} from {}", to, getSenderEmail());
             } catch (Exception e) {
                 log.error("❌ [EmailService] Failed to send forget password OTP to {}: {}", to, e.getMessage(), e);
@@ -61,10 +66,11 @@ public class EmailService {
         }
         CompletableFuture.runAsync(() -> {
             try {
-                SimpleMailMessage message = new SimpleMailMessage();
-                message.setFrom(getSenderEmail());
-                message.setTo(to);
-                message.setSubject("[CodeLearn] Hóa đơn thanh toán thành công - Mã HĐ: #" + invoice.getId());
+                MimeMessage mimeMessage = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, false, "UTF-8");
+                helper.setFrom(getSenderEmail(), "CodeLearn");
+                helper.setTo(to);
+                helper.setSubject("[CodeLearn] Hóa đơn thanh toán thành công - Mã HĐ: #" + invoice.getId());
 
                 StringBuilder body = new StringBuilder();
                 body.append("Cảm ơn bạn đã đăng ký khóa học tại CodeLearn!\n\n");
@@ -89,8 +95,8 @@ public class EmailService {
                 body.append("Trạng thái: ĐÃ THANH TOÁN\n\n");
                 body.append("Chúc bạn có trải nghiệm học tập tuyệt vời tại CodeLearn!\n");
 
-                message.setText(body.toString());
-                mailSender.send(message);
+                helper.setText(body.toString(), false);
+                mailSender.send(mimeMessage);
                 log.info("✅ [EmailService] Invoice email sent successfully to {} from {}", to, getSenderEmail());
             } catch (Exception ex) {
                 log.error("❌ [EmailService] Send invoice email failed to {}: {}", to, ex.getMessage(), ex);
