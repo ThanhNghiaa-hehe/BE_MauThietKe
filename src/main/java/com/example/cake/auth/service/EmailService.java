@@ -33,11 +33,17 @@ public class EmailService {
                 log.info("🔒 [EmailService] Auto-sanitized Gmail App Password for Host environment");
             }
 
+            // Force Port 465 SSL Direct for Cloud Host (Render blocks port 587)
+            senderImpl.setHost("smtp.gmail.com");
+            senderImpl.setPort(465);
+
             Properties props = senderImpl.getJavaMailProperties();
             props.put("mail.smtp.auth", "true");
-            props.put("mail.smtp.starttls.enable", "true");
-            props.put("mail.smtp.starttls.required", "true");
+            props.put("mail.smtp.ssl.enable", "true");
             props.put("mail.smtp.ssl.trust", "*");
+            props.put("mail.smtp.socketFactory.port", "465");
+            props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
+            props.put("mail.smtp.socketFactory.fallback", "false");
             props.put("mail.smtp.ssl.protocols", "TLSv1.2 TLSv1.3");
             props.put("mail.smtp.connectiontimeout", "8000");
             props.put("mail.smtp.timeout", "8000");
