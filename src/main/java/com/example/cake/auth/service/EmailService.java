@@ -10,6 +10,7 @@ import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 
 @Slf4j
@@ -22,6 +23,23 @@ public class EmailService {
     @Value("${spring.mail.username:seanpaul1402@gmail.com}")
     private String fromEmail;
 
+    @PostConstruct
+    public void initSanitizeMailConfig() {
+        if (mailSender instanceof JavaMailSenderImpl senderImpl) {
+            String rawPass = senderImpl.getPassword();
+            if (rawPass != null && rawPass.contains(" ")) {
+                String cleanPass = rawPass.replace(" ", "").trim();
+                senderImpl.setPassword(cleanPass);
+                log.info("🔒 [EmailService] Auto-sanitized Gmail App Password for Host environment");
+            }
+
+            Properties props = senderImpl.getJavaMailProperties();
+            props.put("mail.smtp.auth", "true");
+            props.put("mail.smtp.starttls.enable", "true");
+            props.put("mail.smtp.starttls.required", "true");
+            props.put("mail.smtp.ssl.trust", "smtp.gmail.com");
+        }
+    }
 
     private String getSenderEmail() {
         return (fromEmail != null && !fromEmail.isBlank()) ? fromEmail : "seanpaul1402@gmail.com";
