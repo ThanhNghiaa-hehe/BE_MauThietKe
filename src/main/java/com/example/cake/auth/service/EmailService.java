@@ -16,23 +16,25 @@ public class EmailService {
 
     private final JavaMailSender mailSender;
 
-    @Value("${spring.mail.username:}")
+    @Value("${spring.mail.username:seanpaul1402@gmail.com}")
     private String fromEmail;
+
+    private String getSenderEmail() {
+        return (fromEmail != null && !fromEmail.isBlank()) ? fromEmail : "seanpaul1402@gmail.com";
+    }
 
     public void sendOtpEmail(String to, String otp) {
         CompletableFuture.runAsync(() -> {
             try {
                 SimpleMailMessage message = new SimpleMailMessage();
-                if (fromEmail != null && !fromEmail.isBlank()) {
-                    message.setFrom(fromEmail);
-                }
+                message.setFrom(getSenderEmail());
                 message.setTo(to);
-                message.setSubject("Mã OTP xác minh");
+                message.setSubject("Mã OTP xác minh - CodeLearn");
                 message.setText("Mã OTP của bạn là: " + otp + "\nHiệu lực trong 5 phút.");
                 mailSender.send(message);
-                log.info("✅ [EmailService] OTP email sent successfully to {}", to);
+                log.info("✅ [EmailService] OTP email sent successfully to {} from {}", to, getSenderEmail());
             } catch (Exception e) {
-                log.error("❌ [EmailService] Failed to send OTP email to {}: {}", to, e.getMessage());
+                log.error("❌ [EmailService] Failed to send OTP email to {}: {}", to, e.getMessage(), e);
             }
         });
     }
@@ -41,16 +43,14 @@ public class EmailService {
         CompletableFuture.runAsync(() -> {
             try {
                 SimpleMailMessage message = new SimpleMailMessage();
-                if (fromEmail != null && !fromEmail.isBlank()) {
-                    message.setFrom(fromEmail);
-                }
+                message.setFrom(getSenderEmail());
                 message.setTo(to);
-                message.setSubject("Mã OTP Khôi phục mật khẩu ! ");
-                message.setText("Mã OTP của bạn là : " + otp + "\n Hiệu lực trong 5 phút.");
+                message.setSubject("Mã OTP Khôi phục mật khẩu - CodeLearn");
+                message.setText("Mã OTP của bạn là: " + otp + "\nHiệu lực trong 5 phút.");
                 mailSender.send(message);
-                log.info("✅ [EmailService] Forget password OTP sent successfully to {}", to);
+                log.info("✅ [EmailService] Forget password OTP sent successfully to {} from {}", to, getSenderEmail());
             } catch (Exception e) {
-                log.error("❌ [EmailService] Failed to send forget password OTP to {}: {}", to, e.getMessage());
+                log.error("❌ [EmailService] Failed to send forget password OTP to {}: {}", to, e.getMessage(), e);
             }
         });
     }
@@ -62,9 +62,7 @@ public class EmailService {
         CompletableFuture.runAsync(() -> {
             try {
                 SimpleMailMessage message = new SimpleMailMessage();
-                if (fromEmail != null && !fromEmail.isBlank()) {
-                    message.setFrom(fromEmail);
-                }
+                message.setFrom(getSenderEmail());
                 message.setTo(to);
                 message.setSubject("[CodeLearn] Hóa đơn thanh toán thành công - Mã HĐ: #" + invoice.getId());
 
@@ -93,9 +91,9 @@ public class EmailService {
 
                 message.setText(body.toString());
                 mailSender.send(message);
-                log.info("✅ [EmailService] Invoice email sent successfully to {}", to);
+                log.info("✅ [EmailService] Invoice email sent successfully to {} from {}", to, getSenderEmail());
             } catch (Exception ex) {
-                log.error("❌ [EmailService] Send invoice email failed to {}: {}", to, ex.getMessage());
+                log.error("❌ [EmailService] Send invoice email failed to {}: {}", to, ex.getMessage(), ex);
             }
         });
     }
