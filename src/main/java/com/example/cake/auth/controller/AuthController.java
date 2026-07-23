@@ -24,7 +24,7 @@ public class AuthController {
 
     private final AuthFacade authFacade;
     private final UserService userService;
-    private final org.springframework.mail.javamail.JavaMailSender mailSender;
+    private final com.example.cake.auth.service.EmailService emailService;
 
 
     @PostMapping("/refresh-token")
@@ -90,38 +90,15 @@ public class AuthController {
         Map<String, Object> result = new java.util.LinkedHashMap<>();
         result.put("timestamp", java.time.Instant.now().toString());
         result.put("to", to);
+        result.put("provider", "Resend HTTPS API (Port 443)");
 
-        try {
-            org.springframework.mail.javamail.JavaMailSenderImpl senderImpl =
-                    (org.springframework.mail.javamail.JavaMailSenderImpl) mailSender;
-            result.put("host", senderImpl.getHost());
-            result.put("port", senderImpl.getPort());
-            result.put("username", senderImpl.getUsername());
-            result.put("passwordLength", senderImpl.getPassword() != null ? senderImpl.getPassword().length() : 0);
-            result.put("javaMailProperties", senderImpl.getJavaMailProperties().toString());
-        } catch (Exception e) {
-            result.put("configError", e.getMessage());
-        }
-
-        try {
-            jakarta.mail.internet.MimeMessage mimeMessage = mailSender.createMimeMessage();
-            org.springframework.mail.javamail.MimeMessageHelper helper =
-                    new org.springframework.mail.javamail.MimeMessageHelper(mimeMessage, false, "UTF-8");
-            helper.setFrom("seanpaul1402@gmail.com", "CodeLearn Test");
-            helper.setTo(to);
-            helper.setSubject("[TEST] Diagnostic email from Render Host");
-            helper.setText("If you receive this, email sending works on Render Host!");
-
-            mailSender.send(mimeMessage);
+        boolean ok = emailService.sendViaResendHttp(to, "[TEST] Resend HTTPS API Test", "Mã OTP thử nghiệm: 123456");
+        if (ok) {
             result.put("status", "SUCCESS");
-            result.put("message", "Email sent successfully!");
-        } catch (Exception e) {
+            result.put("message", "Resend HTTPS API sent email successfully!");
+        } else {
             result.put("status", "FAILED");
-            result.put("error", e.getClass().getName());
-            result.put("message", e.getMessage());
-            if (e.getCause() != null) {
-                result.put("cause", e.getCause().getClass().getName() + ": " + e.getCause().getMessage());
-            }
+            result.put("message", "Resend HTTPS API failed. Check server logs for details.");
         }
 
         return ResponseEntity.ok(result);

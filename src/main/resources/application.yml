@@ -39,6 +39,10 @@ mailboxlayer:
 jwt:
   secret: shapio-super-secret-key-abcxyz1234567890
 
+resend:
+  api:
+    key: ${RESEND_API_KEY:re_G3i6NGwk_AbDtquDLV9RpZWLZffoJAie3}
+
 app:
   upload-dir: uploads/
 
