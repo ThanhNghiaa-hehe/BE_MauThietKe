@@ -24,6 +24,7 @@ public class AuthController {
 
     private final AuthFacade authFacade;
     private final UserService userService;
+    private final org.springframework.mail.javamail.JavaMailSender mailSender;
 
 
     @PostMapping("/refresh-token")
@@ -81,5 +82,48 @@ public class AuthController {
     public ResponseEntity<ResponseMessage<Map<String, String>>> resendOtp(@RequestBody Map<String, String> request) {
         String token = request.get("token");
         return ResponseEntity.ok(authFacade.resendOtp(token));
+    }
+
+    // ⚡ Endpoint chẩn đoán gửi mail trên Host - XÓA SAU KHI FIX XONG
+    @GetMapping("/test-mail")
+    public ResponseEntity<Map<String, Object>> testMail(@RequestParam(defaultValue = "seanpaul1402@gmail.com") String to) {
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("timestamp", java.time.Instant.now().toString());
+        result.put("to", to);
+
+        try {
+            org.springframework.mail.javamail.JavaMailSenderImpl senderImpl =
+                    (org.springframework.mail.javamail.JavaMailSenderImpl) mailSender;
+            result.put("host", senderImpl.getHost());
+            result.put("port", senderImpl.getPort());
+            result.put("username", senderImpl.getUsername());
+            result.put("passwordLength", senderImpl.getPassword() != null ? senderImpl.getPassword().length() : 0);
+            result.put("javaMailProperties", senderImpl.getJavaMailProperties().toString());
+        } catch (Exception e) {
+            result.put("configError", e.getMessage());
+        }
+
+        try {
+            jakarta.mail.internet.MimeMessage mimeMessage = mailSender.createMimeMessage();
+            org.springframework.mail.javamail.MimeMessageHelper helper =
+                    new org.springframework.mail.javamail.MimeMessageHelper(mimeMessage, false, "UTF-8");
+            helper.setFrom("seanpaul1402@gmail.com", "CodeLearn Test");
+            helper.setTo(to);
+            helper.setSubject("[TEST] Diagnostic email from Render Host");
+            helper.setText("If you receive this, email sending works on Render Host!");
+
+            mailSender.send(mimeMessage);
+            result.put("status", "SUCCESS");
+            result.put("message", "Email sent successfully!");
+        } catch (Exception e) {
+            result.put("status", "FAILED");
+            result.put("error", e.getClass().getName());
+            result.put("message", e.getMessage());
+            if (e.getCause() != null) {
+                result.put("cause", e.getCause().getClass().getName() + ": " + e.getCause().getMessage());
+            }
+        }
+
+        return ResponseEntity.ok(result);
     }
 }
