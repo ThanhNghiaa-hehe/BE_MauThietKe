@@ -273,7 +273,7 @@ public class PaymentController {
     }
 
     private static String normalizeFrontendBaseUrl(String feBase) {
-        if (feBase == null || feBase.isBlank()) return "http://localhost:5173";
+        if (feBase == null || feBase.isBlank()) return "https://fecourse-alpha.vercel.app";
         // Remove trailing slash
         if (feBase.endsWith("/")) return feBase.substring(0, feBase.length() - 1);
         return feBase;

@@ -50,11 +50,11 @@ payos:
   api-base-url: ${PAYOS_API_BASE_URL:https://api-merchant.payos.vn}
 
   # Frontend base URL for user redirect after PayOS return/cancel
-  frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+  frontend-base-url: ${FRONTEND_BASE_URL:https://fecourse-alpha.vercel.app}
 
   # Return/cancel must point to BACKEND endpoints in Option B (BE will redirect to FE)
-  return-url: ${PAYOS_RETURN_URL:http://localhost:8080/api/payment/payos/return}
-  cancel-url: ${PAYOS_CANCEL_URL:http://localhost:8080/api/payment/payos/cancel}
+  return-url: ${PAYOS_RETURN_URL:https://be-mauthietke.onrender.com/api/payment/payos/return}
+  cancel-url: ${PAYOS_CANCEL_URL:https://be-mauthietke.onrender.com/api/payment/payos/cancel}
 
   # Webhook must be reachable by PayOS server; keep configurable per env
-  webhook-url: ${PAYOS_WEBHOOK_URL:http://localhost:8080/api/payment/payos/webhook}
+  webhook-url: ${PAYOS_WEBHOOK_URL:https://be-mauthietke.onrender.com/api/payment/payos/webhook}
