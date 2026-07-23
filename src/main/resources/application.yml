@@ -8,6 +8,8 @@ spring:
       database: courseDb
     redis:
       url: ${SPRING_REDIS_URL:redis://localhost:6379}
+      repositories:
+        enabled: false
 
   mail:
     host: ${SPRING_MAIL_HOST:smtp.gmail.com}
