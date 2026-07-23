@@ -20,21 +20,21 @@ import java.util.concurrent.CompletableFuture;
 @RequiredArgsConstructor
 public class EmailService {
 
-    @Value("${resend.api.key:re_G3i6NGwk_AbDtquDLV9RpZWLZffoJAie3}")
+    @Value("${resend.api.key:}")
     private String resendApiKey;
 
     private static final String RESEND_API_URL = "https://api.resend.com/emails";
 
     public boolean sendViaResendHttp(String to, String subject, String contentText) {
         try {
+            if (resendApiKey == null || resendApiKey.isBlank()) {
+                log.error("❌ [EmailService] RESEND_API_KEY is not set in environment variables!");
+                return false;
+            }
             RestTemplate restTemplate = new RestTemplate();
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            
-            String apiKey = (resendApiKey != null && !resendApiKey.isBlank()) 
-                    ? resendApiKey.trim() 
-                    : "re_G3i6NGwk_AbDtquDLV9RpZWLZffoJAie3";
-            headers.setBearerAuth(apiKey);
+            headers.setBearerAuth(resendApiKey.trim());
 
             Map<String, Object> body = new HashMap<>();
             body.put("from", "CodeLearn <onboarding@resend.dev>");
