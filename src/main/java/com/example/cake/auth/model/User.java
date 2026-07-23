@@ -18,6 +18,7 @@ import java.time.LocalDate;
 public class User {
     @Id
     private String id;                          //id user
+    @org.springframework.data.mongodb.core.index.Indexed(unique = true)
     private String email;                       //email
     private String fullname ;                   // Tên uer
     private String password ;                   // mật khẩu
